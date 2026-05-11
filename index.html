@@ -21,63 +21,66 @@
     }
 
     /* ── Mapa ── */
-    #map {
-      position: fixed;
-      inset: 0;
-      z-index: 0;
-    }
+    #map { position: fixed; inset: 0; z-index: 0; }
 
     /* ── Barra superior ── */
     #top {
       position: fixed;
       top: 0; left: 0; right: 0;
       z-index: 1000;
-      padding: clamp(4px, 1.5vw, 8px) clamp(6px, 2vw, 12px);
+      padding: 6px 8px;
       background: transparent;
       pointer-events: none;
     }
     #top > *, #top button { pointer-events: auto; }
 
+    /* Una sola fila que nunca rompe a segunda línea */
+    .topbar {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 5px;
+      width: 100%;
+    }
+
     .title-box {
-      display: inline-block;
-      padding: clamp(3px,1vw,6px) clamp(5px,1.5vw,10px);
-      border: 1px solid rgba(200,200,200,.8);
-      border-radius: 10px;
-      font-size: clamp(10px, 2vw, 13px);
-      background: rgba(255,255,255,.70);
+      flex: 1 1 0;
+      min-width: 0;
+      padding: 4px 7px;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      font-size: clamp(9px, 2.2vw, 12px);
+      background: rgba(255,255,255,.72);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
-      max-width: 100%;
-      white-space: normal;
-      word-break: break-word;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       line-height: 1.3;
     }
 
-    .row {
-      display: flex;
-      gap: clamp(4px, 1.2vw, 8px);
-      flex-wrap: wrap;
-      margin-top: clamp(3px, 1vw, 6px);
-      align-items: center;
-    }
-
     .box {
-      padding: clamp(3px,1vw,5px) clamp(5px,1.5vw,9px);
-      border: 1px solid rgba(200,200,200,.8);
-      border-radius: 10px;
-      font-size: clamp(10px, 1.8vw, 12px);
-      background: rgba(255,255,255,.70);
+      flex-shrink: 0;
+      padding: 4px 7px;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      font-size: clamp(9px, 2vw, 12px);
+      background: rgba(255,255,255,.72);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
       white-space: nowrap;
     }
 
     .btn-refresh {
-      padding: clamp(3px,1vw,5px) clamp(6px,1.8vw,10px);
-      border: 1px solid #bbb;
-      background: rgba(255,255,255,.88);
-      border-radius: 10px;
-      font-size: clamp(10px, 1.8vw, 12px);
+      flex-shrink: 0;
+      padding: 4px 7px;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: rgba(255,255,255,.85);
+      font-size: clamp(9px, 2vw, 12px);
       cursor: pointer;
       user-select: none;
       white-space: nowrap;
@@ -85,15 +88,17 @@
       -webkit-tap-highlight-color: transparent;
       transition: background .15s;
     }
-    .btn-refresh:active { background: rgba(220,220,220,.95); transform: scale(.97); }
+    .btn-refresh:active { background: rgba(210,210,210,.95); transform: scale(.97); }
 
     /* ── Píldora estado ── */
     .busstate-pill {
       display: inline-block;
-      padding: 2px clamp(5px,1.5vw,8px);
-      border-radius: 10px;
+      padding: 2px 6px;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
       color: #fff;
-      font-size: clamp(10px, 1.8vw, 12px);
+      font-size: clamp(9px, 2vw, 12px);
     }
     .busstate-pill.moving  { background: #008000; }
     .busstate-pill.stopped { background: #cc0000; }
@@ -106,6 +111,7 @@
       display: flex; align-items: center; justify-content: center;
       transform: translate(-50%,-50%);
       border: 2px solid rgba(255,255,255,.9);
+      box-shadow: none;
       user-select: none;
     }
     .bus-wrap.moving  { background: #008000; }
@@ -115,11 +121,13 @@
     /* ── Paradas ── */
     .stop-icon { font-size: clamp(22px,4vw,32px); transform: translate(-50%,-50%); }
 
-    /* ── Leaflet: sin sombras ── */
-    .leaflet-popup-content-wrapper,
-    .leaflet-popup-tip        { box-shadow: none !important; }
-    .leaflet-marker-shadow    { display: none !important; }
-    .leaflet-popup-content    { font-family: Arial,sans-serif !important; font-weight: normal !important; }
+    /* ── Leaflet: sin bordes ni sombras ── */
+    .leaflet-popup-content-wrapper { box-shadow: none !important; border: none !important; }
+    .leaflet-popup-tip             { box-shadow: none !important; }
+    .leaflet-marker-shadow         { display: none !important; }
+    .leaflet-popup-content         { font-family: Arial,sans-serif !important; font-weight: normal !important; }
+    .leaflet-bar, .leaflet-bar a   { box-shadow: none !important; border: none !important; }
+    .leaflet-control               { box-shadow: none !important; }
 
     /* ── Popups ── */
     .popup-wrap      { width: clamp(130px,35vw,170px); font-family: Arial,sans-serif; }
@@ -138,7 +146,7 @@
     /* ── Modal info ── */
     #infoOverlay {
       position: fixed; inset: 0;
-      background: rgba(0,0,0,.30);
+      background: rgba(0,0,0,.25);
       display: none; align-items: center; justify-content: center;
       z-index: 2000;
       padding: clamp(8px,3vw,20px);
@@ -149,10 +157,10 @@
       max-height: calc(100vh - 32px);
       overflow-y: auto;
       background: #fff;
-      border: 1px solid rgba(210,210,210,.95);
-      border-radius: clamp(10px,2vw,16px);
+      border: none;
+      border-radius: 0;
       box-shadow: none;
-      padding: clamp(8px,2vw,14px) clamp(10px,2.5vw,16px) clamp(10px,2vw,14px);
+      padding: clamp(8px,2vw,14px) clamp(10px,2.5vw,16px);
       font-family: Arial,sans-serif;
       font-size: clamp(11px,1.8vw,13px);
       color: #000;
@@ -166,8 +174,11 @@
     #infoTitle  { font-size: clamp(11px,1.8vw,13px); font-weight: normal; opacity: .9; }
     #infoClose  {
       padding: clamp(3px,1vw,5px) clamp(8px,2vw,12px);
-      border: 1px solid #bbb; background: rgba(255,255,255,.95);
-      border-radius: 9px; font-size: clamp(10px,1.8vw,12px);
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+      background: rgba(230,230,230,.95);
+      font-size: clamp(10px,1.8vw,12px);
       cursor: pointer; user-select: none; flex-shrink: 0;
       touch-action: manipulation;
     }
@@ -179,10 +190,11 @@
     @media (max-width: 480px) { #infoGrid { grid-template-columns: 1fr; } }
 
     .infoCol {
-      border: 1px solid rgba(210,210,210,.85);
-      border-radius: clamp(8px,1.5vw,12px);
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
       padding: clamp(7px,1.5vw,11px);
-      background: #fff;
+      background: #f7f7f7;
     }
     .infoColTitle {
       text-align: center;
@@ -195,18 +207,17 @@
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
-    /* ── Zoom control reposicionado ── */
+    /* ── Zoom control ── */
     .leaflet-top.leaflet-right { top: auto; bottom: clamp(12px,3vw,24px); }
-
-    /* ── Prevenir zoom doble-tap en iOS ── */
     #map, .btn-refresh, .stop-icon { touch-action: manipulation; }
   </style>
 </head>
 
 <body>
   <div id="top">
-    <div class="title-box">🗺️ TerminalOtavalo-Centro-SanJuanAlto-LaBanda-Quichinche</div>
-    <div class="row">
+    <!-- Una sola fila, todos los elementos alineados -->
+    <div class="topbar">
+      <div class="title-box">🗺️ TerminalOtavalo-Centro-SanJuanAlto-LaBanda-Quichinche</div>
       <div class="box">Hora: <span id="hora">--</span></div>
       <div class="box">Estado: <span id="busState" class="busstate-pill stopped">Detenido</span></div>
       <button id="btnReload"      class="btn-refresh">🔃 Recargar</button>
@@ -280,10 +291,10 @@ const infoMovilEl = document.getElementById("infoMovil");
 const infoFijoEl  = document.getElementById("infoFijo");
 let infoOpen = false, latestFijoData = null, latestBusData = null;
 
-const safeNum    = (v, d=6) => { const n = Number(v); return isFinite(n) ? n.toFixed(d) : "--" };
+const safeNum    = (v,d=6) => { const n=Number(v); return isFinite(n)?n.toFixed(d):"--" };
 const safeVal    = v => (v===undefined||v===null||v===""||
-                         (typeof v==="number"&&!isFinite(v))) ? "--" : String(v);
-const makeLines  = a => a.map(t => `<div class="infoLine">${t}</div>`).join("");
+                        (typeof v==="number"&&!isFinite(v)))?"--":String(v);
+const makeLines  = a => a.map(t=>`<div class="infoLine">${t}</div>`).join("");
 const boolToSiNo = v => {
   if(v===true ||v==="true" ||v==="TRUE" ||v==="True")  return "Si";
   if(v===false||v==="false"||v==="FALSE"||v==="False") return "No";
@@ -291,27 +302,24 @@ const boolToSiNo = v => {
 };
 
 function renderInfo() {
-  const m = latestBusData || {}, f = latestFijoData || {};
-  const movilVel = (m.speed_kmh!==undefined && isFinite(Number(m.speed_kmh)))
-    ? `${Number(m.speed_kmh).toFixed(1)} km/h` : "--";
-
-  infoMovilEl.innerHTML = makeLines([
+  const m=latestBusData||{}, f=latestFijoData||{};
+  const movilVel=(m.speed_kmh!==undefined&&isFinite(Number(m.speed_kmh)))
+    ?`${Number(m.speed_kmh).toFixed(1)} km/h`:"--";
+  infoMovilEl.innerHTML=makeLines([
     `Hora: ${safeVal(m.hora_ecuador)}`,
-    `Latitud: ${m.lat!==undefined ? safeNum(m.lat,6) : "--"}`,
-    `Longitud: ${m.lon!==undefined ? safeNum(m.lon,6) : "--"}`,
+    `Latitud: ${m.lat!==undefined?safeNum(m.lat,6):"--"}`,
+    `Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
     `Satélites: ${safeVal(m.satelites)}`,
     `Velocidad: ${movilVel}`,
     `HDOP: ${safeVal(m.hdop)}`
   ]);
-
-  let fijoFlag = "--";
-  if(f.fijo_ok!==undefined) fijoFlag = boolToSiNo(f.fijo_ok);
-  else if(f.fix!==undefined) fijoFlag = boolToSiNo(f.fix);
-
-  infoFijoEl.innerHTML = makeLines([
+  let fijoFlag="--";
+  if(f.fijo_ok!==undefined) fijoFlag=boolToSiNo(f.fijo_ok);
+  else if(f.fix!==undefined) fijoFlag=boolToSiNo(f.fix);
+  infoFijoEl.innerHTML=makeLines([
     `Hora: ${safeVal(f.hora_ecuador)}`,
-    `Latitud: ${f.lat!==undefined ? safeNum(f.lat,6) : "--"}`,
-    `Longitud: ${f.lon!==undefined ? safeNum(f.lon,6) : "--"}`,
+    `Latitud: ${f.lat!==undefined?safeNum(f.lat,6):"--"}`,
+    `Longitud: ${f.lon!==undefined?safeNum(f.lon,6):"--"}`,
     `Satélites: ${safeVal(f.satelites)}`,
     `Fijo: ${fijoFlag}`,
     `HDOP: ${safeVal(f.hdop)}`
@@ -319,128 +327,122 @@ function renderInfo() {
 }
 
 function openInfo()  {
-  infoOpen = true; renderInfo();
-  infoOverlay.style.display = "flex";
+  infoOpen=true; renderInfo();
+  infoOverlay.style.display="flex";
   infoOverlay.setAttribute("aria-hidden","false");
 }
 function closeInfo() {
-  infoOpen = false;
-  infoOverlay.style.display = "none";
+  infoOpen=false;
+  infoOverlay.style.display="none";
   infoOverlay.setAttribute("aria-hidden","true");
 }
 
-document.getElementById("btnInfo").addEventListener("click",  e => { e.preventDefault(); openInfo(); });
+document.getElementById("btnInfo").addEventListener("click",  e=>{ e.preventDefault(); openInfo(); });
 document.getElementById("infoClose").addEventListener("click", closeInfo);
-infoOverlay.addEventListener("click", e => { if(e.target === infoOverlay) closeInfo(); });
-window.addEventListener("keydown",   e => { if(e.key==="Escape" && infoOpen) closeInfo(); });
+infoOverlay.addEventListener("click", e=>{ if(e.target===infoOverlay) closeInfo(); });
+window.addEventListener("keydown",   e=>{ if(e.key==="Escape"&&infoOpen) closeInfo(); });
 
 // ─── Iconos ───────────────────────────────────────────────────
-const stopIcon = L.divIcon({
-  className: "stop-icon", html: "🗑️",
-  iconSize: [36,36], iconAnchor: [18,18]
-});
-const makeBusIconHtml = m =>
+const stopIcon=L.divIcon({className:"stop-icon",html:"🗑️",iconSize:[36,36],iconAnchor:[18,18]});
+const makeBusIconHtml=m=>
   `<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚚</span></div>`;
 
-let busIsMoving = false;
-let busIcon = L.divIcon({
-  className:"", html: makeBusIconHtml(false), iconSize:[30,30], iconAnchor:[15,15]
-});
-const busMarker = L.marker([0,0], {icon:busIcon}).addTo(map);
+let busIsMoving=false;
+let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[30,30],iconAnchor:[15,15]});
+const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
 
-function buildBusPopupHtml(speedKmh, isMoving) {
-  const estadoTxt = isMoving ? "Movimiento" : "Detenido";
+function buildBusPopupHtml(speedKmh,isMoving){
+  const estadoTxt=isMoving?"Movimiento":"Detenido";
   return `<div class="popup-wrap">
     <span class="popup-title">🚛 Recolector</span>
     <span class="popup-line">Velocidad: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
     <span class="popup-line">Estado: <span class="popup-val ${isMoving?"moving":"stopped"}">${estadoTxt}</span></span>
   </div>`;
 }
-busMarker.bindPopup(buildBusPopupHtml(0, false));
-busMarker.on("popupopen", () => pauseFollowFor());
+busMarker.bindPopup(buildBusPopupHtml(0,false));
+busMarker.on("popupopen",()=>pauseFollowFor());
 
 // ─── Auto-follow ──────────────────────────────────────────────
-const FOLLOW_RESUME_MS = 60000;
-let followEnabled = true, followTimer = null, lastLatLng = null;
+const FOLLOW_RESUME_MS=60000;
+let followEnabled=true, followTimer=null, lastLatLng=null;
 
-function pauseFollowFor(ms = FOLLOW_RESUME_MS) {
-  followEnabled = false;
+function pauseFollowFor(ms=FOLLOW_RESUME_MS){
+  followEnabled=false;
   if(followTimer) clearTimeout(followTimer);
-  followTimer = setTimeout(() => {
-    followEnabled = true;
-    if(lastLatLng) map.setView(lastLatLng, map.getZoom(), {animate:true, duration:0.6});
-  }, ms);
+  followTimer=setTimeout(()=>{
+    followEnabled=true;
+    if(lastLatLng) map.setView(lastLatLng,map.getZoom(),{animate:true,duration:0.6});
+  },ms);
 }
-map.on("zoomstart", () => pauseFollowFor());
-map.on("zoom",      () => pauseFollowFor());
-map.on("dragstart", () => pauseFollowFor());
-map.on("movestart", () => pauseFollowFor());
+map.on("zoomstart",()=>pauseFollowFor());
+map.on("zoom",     ()=>pauseFollowFor());
+map.on("dragstart",()=>pauseFollowFor());
+map.on("movestart",()=>pauseFollowFor());
 
 // ─── Ruta verde ───────────────────────────────────────────────
-const trailLatLngs = [], MAX_POINTS = 5000;
-const trailLine = L.polyline(trailLatLngs, {color:"green", weight:5, opacity:0.9}).addTo(map);
-const trailHead = L.polyline([],           {color:"green", weight:5, opacity:0.9}).addTo(map);
-let trailVisible = true;
+const trailLatLngs=[], MAX_POINTS=5000;
+const trailLine=L.polyline(trailLatLngs,{color:"green",weight:5,opacity:0.9}).addTo(map);
+const trailHead=L.polyline([],          {color:"green",weight:5,opacity:0.9}).addTo(map);
+let trailVisible=true;
 
-document.getElementById("btnToggleTrail").addEventListener("click", e => {
-  trailVisible = !trailVisible;
-  if(trailVisible) {
+document.getElementById("btnToggleTrail").addEventListener("click",e=>{
+  trailVisible=!trailVisible;
+  if(trailVisible){
     trailLine.setLatLngs(trailLatLngs);
     if(!map.hasLayer(trailLine)) trailLine.addTo(map);
     if(!map.hasLayer(trailHead)) trailHead.addTo(map);
-    e.target.textContent = "🟢 Ruta: Si";
-  } else {
+    e.target.textContent="🟢 Ruta: Si";
+  }else{
     if(map.hasLayer(trailLine)) map.removeLayer(trailLine);
     if(map.hasLayer(trailHead)) map.removeLayer(trailHead);
-    e.target.textContent = "⚫ Ruta: No";
+    e.target.textContent="⚫ Ruta: No";
   }
 });
 
 // ─── Util ─────────────────────────────────────────────────────
-function haversineMeters(lat1, lon1, lat2, lon2) {
-  const R = 6371000, toRad = x => x * Math.PI / 180;
-  const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
-  const a = Math.sin(dLat/2)**2 +
-            Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+function haversineMeters(lat1,lon1,lat2,lon2){
+  const R=6371000,toRad=x=>x*Math.PI/180;
+  const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
+  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
   return 2*R*Math.asin(Math.sqrt(a));
 }
-function formatDist(m) {
+function formatDist(m){
   if(!isFinite(m)||m<=0) return "--";
-  return (m<1000) ? `${m.toFixed(0)} m` : `${(m/1000).toFixed(2)} km`;
+  return (m<1000)?`${m.toFixed(0)} m`:`${(m/1000).toFixed(2)} km`;
 }
-function formatETA(sec) {
+function formatETA(sec){
   if(!isFinite(sec)||sec<=0) return "--";
-  const m = Math.round(sec/60);
+  const m=Math.round(sec/60);
   if(m<1)  return "< 1 min";
   if(m<60) return `${m} min`;
   return `${Math.floor(m/60)} h ${m%60} min`;
 }
-const ema  = (p,x,a) => p==null ? x : a*x+(1-a)*p;
-const ema2 = (p,x,a) => !p ? x : [ema(p[0],x[0],a), ema(p[1],x[1],a)];
+const ema =(p,x,a)=>p==null?x:a*x+(1-a)*p;
+const ema2=(p,x,a)=>!p?x:[ema(p[0],x[0],a),ema(p[1],x[1],a)];
 
 // ─── ETA ──────────────────────────────────────────────────────
-const ROUTE_FACTOR=1.45, ETA_BIAS_SEC=45, DEFAULT_SPEED_KMH=3.0;
-const SPEED_ALPHA=0.35, MIN_USABLE_SPEED_KMH=2.0, MAX_REASONABLE_SPEED_KMH=55;
-let speedSmoothed=null, lastGoodSpeed=null;
+const ROUTE_FACTOR=1.45,ETA_BIAS_SEC=45,DEFAULT_SPEED_KMH=3.0;
+const SPEED_ALPHA=0.35,MIN_USABLE_SPEED_KMH=2.0,MAX_REASONABLE_SPEED_KMH=55;
+let speedSmoothed=null,lastGoodSpeed=null;
 
-function pickSpeedKmh(rawSpeedKmh) {
-  let s = Number(rawSpeedKmh||0);
+function pickSpeedKmh(rawSpeedKmh){
+  let s=Number(rawSpeedKmh||0);
   if(!isFinite(s)||s<0) s=0;
   if(s>MAX_REASONABLE_SPEED_KMH) s=MAX_REASONABLE_SPEED_KMH;
-  speedSmoothed = ema(speedSmoothed, s, SPEED_ALPHA);
+  speedSmoothed=ema(speedSmoothed,s,SPEED_ALPHA);
   if(isFinite(speedSmoothed)&&speedSmoothed>=MIN_USABLE_SPEED_KMH) lastGoodSpeed=speedSmoothed;
   if(isFinite(speedSmoothed)&&speedSmoothed>=MIN_USABLE_SPEED_KMH) return speedSmoothed;
   if(isFinite(lastGoodSpeed)&&lastGoodSpeed>=MIN_USABLE_SPEED_KMH) return lastGoodSpeed;
   return DEFAULT_SPEED_KMH;
 }
-function calcEtaSeconds(distStraightM, usedSpeedKmh) {
-  return (distStraightM*ROUTE_FACTOR / Math.max(usedSpeedKmh/3.6, 0.1)) + ETA_BIAS_SEC;
+function calcEtaSeconds(distStraightM,usedSpeedKmh){
+  return(distStraightM*ROUTE_FACTOR/Math.max(usedSpeedKmh/3.6,0.1))+ETA_BIAS_SEC;
 }
 
 // ─── Snap a calle ─────────────────────────────────────────────
-const SNAP_MIN_MOVE_M=10, SNAP_MAX_ERR_M=35, SNAP_TTL_MS=15000;
+const SNAP_MIN_MOVE_M=10,SNAP_MAX_ERR_M=35,SNAP_TTL_MS=15000;
 const snapCache=new Map();
-let lastSnapRaw=null, lastSnapped=null, snapPending=false;
+let lastSnapRaw=null,lastSnapped=null,snapPending=false;
 const snapKey=(lat,lon)=>`${lat.toFixed(5)},${lon.toFixed(5)}`;
 
 async function snapToRoad(lat,lon){
@@ -460,7 +462,7 @@ function maybeRequestSnap(rawLat,rawLon){
   if(!lastSnapRaw) lastSnapRaw=[rawLat,rawLon];
   if(haversineMeters(lastSnapRaw[0],lastSnapRaw[1],rawLat,rawLon)<SNAP_MIN_MOVE_M) return;
   snapPending=true;
-  const rLat=rawLat, rLon=rawLon;
+  const rLat=rawLat,rLon=rawLon;
   lastSnapRaw=[rawLat,rawLon];
   snapToRoad(rLat,rLon).then(pt=>{
     if(haversineMeters(rLat,rLon,pt[0],pt[1])<=SNAP_MAX_ERR_M)
@@ -477,8 +479,8 @@ function pickRoadPoint(rawLat,rawLon){
 }
 
 // ─── Filtro / ruta ────────────────────────────────────────────
-const SMOOTH_ALPHA_POS=0.45, MIN_ADD_DIST_M=3, MAX_JUMP_DRAW_M=200;
-let lastStableDraw=null, lastSmoothed=null;
+const SMOOTH_ALPHA_POS=0.45,MIN_ADD_DIST_M=3,MAX_JUMP_DRAW_M=200;
+let lastStableDraw=null,lastSmoothed=null;
 
 function pushTrail(latLng){
   trailLatLngs.push(latLng);
@@ -506,7 +508,7 @@ function updateGreenTrailForced(rawLat,rawLon){
 }
 
 // ─── Paradas ──────────────────────────────────────────────────
-const stops = [
+const stops=[
   {id:"p1", name:"Parada 1", lat:0.2308,  lon:-78.25777},
   {id:"p2", name:"Parada 2", lat:0.22938, lon:-78.25877},
   {id:"p3", name:"Parada 3", lat:0.23075, lon:-78.26084},
@@ -575,7 +577,7 @@ function upsertNodoFijoMarker(lat,lon){
     nodoFijoMarker.on("popupopen",  ()=>{ activeStopId=NODO_FIJO_ID; pauseFollowFor(); });
     nodoFijoMarker.on("popupclose", ()=>{ if(activeStopId===NODO_FIJO_ID) activeStopId=null; });
     stopMarkers.set(NODO_FIJO_ID,nodoFijoMarker);
-  } else nodoFijoMarker.setLatLng([lat,lon]);
+  }else nodoFijoMarker.setLatLng([lat,lon]);
 }
 
 // ─── Estado bus ───────────────────────────────────────────────
@@ -593,18 +595,18 @@ function setBusMovingState(isMoving){
 }
 
 // ─── Firebase listeners ───────────────────────────────────────
-onValue(ref(db,"NodoFijo"), snap=>{
+onValue(ref(db,"NodoFijo"),snap=>{
   const d=snap.val(); if(!d) return;
   latestFijoData=d;
   if(infoOpen) renderInfo();
-  const lat=Number(d.lat||0), lon=Number(d.lon||0);
+  const lat=Number(d.lat||0),lon=Number(d.lon||0);
   if(!lat||!lon) return;
   nodoFijoLast.dist_m=(d.bus_dist_m!==undefined)?Number(d.bus_dist_m):null;
   nodoFijoLast.eta_s =(d.bus_eta_s !==undefined)?Number(d.bus_eta_s) :null;
   upsertNodoFijoMarker(lat,lon);
 });
 
-onValue(ref(db,"NodoMovil"), snap=>{
+onValue(ref(db,"NodoMovil"),snap=>{
   const d=snap.val(); if(!d) return;
   latestBusData=d;
   if(infoOpen) renderInfo();
@@ -612,7 +614,7 @@ onValue(ref(db,"NodoMovil"), snap=>{
 
 // ─── Aplica datos a UI y mapa ─────────────────────────────────
 function applyBusDataToUIAndMap(d){
-  const lat=Number(d.lat||0), lon=Number(d.lon||0);
+  const lat=Number(d.lat||0),lon=Number(d.lon||0);
   if(!lat||!lon) return null;
   const rawSpeedKmh =Number(d.speed_kmh||0);
   const usedSpeedKmh=pickSpeedKmh(rawSpeedKmh);
@@ -638,14 +640,14 @@ setInterval(()=>{
   if(activeStopId){
     if(activeStopId===NODO_FIJO_ID&&nodoFijoMarker){
       nodoFijoMarker.setPopupContent(buildNodoFijoPopupHtml(info.usedSpeedKmh));
-    } else {
+    }else{
       const s=stops.find(x=>x.id===activeStopId);
       const m=stopMarkers.get(activeStopId);
       if(s&&m){
         const dist2=haversineMeters(info.lat,info.lon,s.lat,s.lon);
         const eta2 =formatETA(calcEtaSeconds(dist2,info.usedSpeedKmh));
         m.setPopupContent(buildStopPopupHtml(
-          s.name, eta2, formatDist(dist2),
+          s.name,eta2,formatDist(dist2),
           `${info.usedSpeedKmh.toFixed(1)} km/h`
         ));
       }
@@ -653,7 +655,7 @@ setInterval(()=>{
   }
   if(busMarker.isPopupOpen())
     busMarker.setPopupContent(buildBusPopupHtml(info.rawSpeedKmh,busIsMoving));
-}, 3000);
+},3000);
 </script>
 </body>
 </html>
