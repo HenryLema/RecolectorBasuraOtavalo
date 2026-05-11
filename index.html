@@ -171,8 +171,8 @@ infoOverlay.addEventListener("click", e => { if(e.target === infoOverlay) closeI
 window.addEventListener("keydown", e => { if(e.key === "Escape" && infoOpen) closeInfo() });
 
 // ─── Iconos ───────────────────────────────────────────────────
-const stopIcon = L.divIcon({className:"stop-icon", html:"🚏", iconSize:[42,42], iconAnchor:[21,21]});
-const makeBusIconHtml = m => `<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚍</span></div>`;
+const stopIcon = L.divIcon({className:"stop-icon", html:"🗑️", iconSize:[42,42], iconAnchor:[21,21]});
+const makeBusIconHtml = m => `<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚚</span></div>`;
 
 let busIsMoving = false;
 let busIcon = L.divIcon({className:"", html:makeBusIconHtml(false), iconSize:[30,30], iconAnchor:[15,15]});
