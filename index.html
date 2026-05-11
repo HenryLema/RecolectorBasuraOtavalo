@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Tracking GPS en Tiempo Real</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    html,body,#map{height:100%;width:100%}
+    body{font-family:Arial,sans-serif;margin:0;font-size:12px}
+    #map{position:fixed;inset:0}
+
+    #top{position:fixed;top:0;left:0;right:0;z-index:1000;padding:5px 8px;background:rgba(255,255,255,0);pointer-events:none}
+    #top .row,#top button,#top .box,#top .title-box{pointer-events:auto}
+
+    .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px;align-items:center}
+    .box,.title-box{padding:3px 6px;border:1px solid rgba(221,221,221,.85);border-radius:8px;font-size:11px;background:rgba(255,255,255,.55);backdrop-filter:blur(2px)}
+    .title-box{display:inline-block;line-height:1.15;max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+
+    .btn-refresh{padding:3px 6px;border:1px solid #bbb;background:rgba(255,255,255,.85);border-radius:8px;font-size:11px;cursor:pointer;user-select:none}
+    .btn-refresh:active{transform:scale(.98)}
+
+    .bus-wrap{width:30px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;transform:translate(-50%,-50%);border:2px solid rgba(255,255,255,.9);user-select:none}
+    .bus-wrap.moving{background:#008000}
+    .bus-wrap.stopped{background:#ff0000}
+    .bus-emoji{font-size:18px;line-height:1}
+
+    .stop-icon{font-size:30px;transform:translate(-50%,-50%);}
+
+    .leaflet-popup-content-wrapper,.leaflet-popup-tip{box-shadow:none!important;-webkit-box-shadow:none!important}
+    .leaflet-marker-shadow{display:none!important}
+    .leaflet-popup-content{font-family:Arial,sans-serif!important;font-weight:normal!important}
+
+    .popup-wrap{width:160px;font-family:Arial,sans-serif}
+    .stop-popup-wrap{width:170px;font-family:Arial,sans-serif}
+    .popup-title,.popup-line,.stop-popup-title,.stop-popup-line{display:block;color:#000;font-weight:normal;font-size:12px;line-height:1.25;margin:3px 0}
+    .popup-title,.stop-popup-title{text-align:center;margin:0 0 4px 0;line-height:1}
+    .popup-val{font-weight:normal}
+    .popup-val.moving{color:#008000}
+    .popup-val.stopped{color:#ff0000}
+
+    .busstate-pill{display:inline-block;padding:3px 6px;border-radius:8px;color:#fff;font-weight:normal;font-size:11px}
+    .busstate-pill.moving{background:#008000}
+    .busstate-pill.stopped{background:#ff0000}
+
+    #infoOverlay{position:fixed;inset:0;background:rgba(0,0,0,.25);display:none;align-items:center;justify-content:center;z-index:2000;pointer-events:auto}
+    #infoModal{width:min(760px,calc(100vw - 24px));background:#fff;border:1px solid rgba(221,221,221,.95);border-radius:14px;box-shadow:none;padding:10px 12px 12px;font-family:Arial,sans-serif;font-size:12px;color:#000}
+    #infoTopRow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+    #infoTitle{font-size:12px;font-weight:normal;opacity:.9}
+    #infoClose{padding:3px 8px;border:1px solid #bbb;background:rgba(255,255,255,.95);border-radius:8px;font-size:11px;cursor:pointer;user-select:none}
+    #infoGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:560px){#infoGrid{grid-template-columns:1fr}}
+    .infoCol{border:1px solid rgba(221,221,221,.85);border-radius:12px;padding:10px;background:#fff}
+    .infoColTitle{text-align:center;font-size:12px;font-weight:normal;margin:0 0 8px 0}
+    .infoLine{font-size:12px;font-weight:normal;margin:3px 0;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  </style>
+</head>
+
+<body>
+  <div id="top">
+    <div class="title-box">🗺️​ TerminalOtavalo-Centro-SanJuanAlto-LaBanda-Quichinche</div>
+    <div class="row">
+      <div class="box">Hora: <span id="hora">--</span></div>
+      <div class="box">Estado: <span id="busState" class="busstate-pill stopped">Detenido</span></div>
+      <button id="btnReload" class="btn-refresh">🔃 Recargar</button>
+      <button id="btnToggleTrail" class="btn-refresh">🟢 Ruta: Si</button>
+      <button id="btnInfo" class="btn-refresh">ℹ️ Info</button>
+    </div>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="infoOverlay" aria-hidden="true">
+    <div id="infoModal" role="dialog" aria-modal="true">
+      <div id="infoTopRow">
+        <div id="infoTitle">Información en Tiempo Real (Firebase)</div>
+        <button id="infoClose">Cerrar</button>
+      </div>
+      <div id="infoGrid">
+        <div class="infoCol">
+          <div class="infoColTitle">NodoMovil</div>
+          <div id="infoMovil"></div>
+        </div>
+        <div class="infoCol">
+          <div class="infoColTitle">NodoFijo</div>
+          <div id="infoFijo"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+// ─── Firebase: nueva base de datos ───────────────────────────
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyCZP36RLL7SEWvyLApKKFJzjjssNRe-_LE",
+  authDomain:        "recolectorbasuraotavalo.firebaseapp.com",
+  databaseURL:       "https://recolectorbasuraotavalo-default-rtdb.firebaseio.com",
+  projectId:         "recolectorbasuraotavalo",
+  storageBucket:     "recolectorbasuraotavalo.firebasestorage.app",
+  messagingSenderId: "900064792007",
+  appId:             "1:900064792007:web:c88637de46577aed87dde2"
+};
+const db = getDatabase(initializeApp(firebaseConfig));
+
+// ─── Mapa ─────────────────────────────────────────────────────
+const map = L.map("map", {zoomControl:false}).setView([0.23299010950077462,-78.26316758796887], 14);
+map.attributionControl.setPrefix("RedOtavalo");
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+
+map.on("popupopen", e => setTimeout(() => { if(map.hasLayer(e.popup)) map.closePopup(e.popup) }, 60000));
+
+document.getElementById("btnReload").addEventListener("click", async () => {
+  try { await set(ref(db, "Control/restart_ts"), Date.now()) } catch(e) {}
+  location.reload();
+});
+
+// ─── Info modal ───────────────────────────────────────────────
+const infoOverlay  = document.getElementById("infoOverlay");
+const infoMovilEl  = document.getElementById("infoMovil");
+const infoFijoEl   = document.getElementById("infoFijo");
+let infoOpen = false, latestFijoData = null, latestBusData = null;
+
+const safeNum  = (v, d=6) => { const n = Number(v); return isFinite(n) ? n.toFixed(d) : "--" };
+const safeVal  = v => (v === undefined || v === null || v === "" || (typeof v === "number" && !isFinite(v))) ? "--" : String(v);
+const makeLines = a => a.map(t => `<div class="infoLine">${t}</div>`).join("");
+const boolToSiNo = v => {
+  if(v===true ||v==="true" ||v==="TRUE" ||v==="True") return "Si";
+  if(v===false||v==="false"||v==="FALSE"||v==="False") return "No";
+  return "--";
+};
+
+function renderInfo() {
+  const m = latestBusData || {}, f = latestFijoData || {};
+  const movilVel = (m.speed_kmh !== undefined && isFinite(Number(m.speed_kmh)))
+    ? `${Number(m.speed_kmh).toFixed(1)} km/h` : "--";
+
+  infoMovilEl.innerHTML = makeLines([
+    `Hora: ${safeVal(m.hora_ecuador)}`,
+    `Latitud: ${m.lat !== undefined ? safeNum(m.lat,6) : "--"}`,
+    `Longitud: ${m.lon !== undefined ? safeNum(m.lon,6) : "--"}`,
+    `Satélites: ${safeVal(m.satelites)}`,
+    `Velocidad: ${movilVel}`,
+    `HDOP: ${safeVal(m.hdop)}`
+  ]);
+
+  let fijoFlag = "--";
+  if(f.fijo_ok !== undefined) fijoFlag = boolToSiNo(f.fijo_ok);
+  else if(f.fix !== undefined) fijoFlag = boolToSiNo(f.fix);
+
+  infoFijoEl.innerHTML = makeLines([
+    `Hora: ${safeVal(f.hora_ecuador)}`,
+    `Latitud: ${f.lat !== undefined ? safeNum(f.lat,6) : "--"}`,
+    `Longitud: ${f.lon !== undefined ? safeNum(f.lon,6) : "--"}`,
+    `Satélites: ${safeVal(f.satelites)}`,
+    `Fijo: ${fijoFlag}`,
+    `HDOP: ${safeVal(f.hdop)}`
+  ]);
+}
+function openInfo()  { infoOpen=true;  renderInfo(); infoOverlay.style.display="flex"; infoOverlay.setAttribute("aria-hidden","false") }
+function closeInfo() { infoOpen=false; infoOverlay.style.display="none";  infoOverlay.setAttribute("aria-hidden","true") }
+
+document.getElementById("btnInfo").addEventListener("click",  e => { e.preventDefault(); openInfo() });
+document.getElementById("infoClose").addEventListener("click", closeInfo);
+infoOverlay.addEventListener("click", e => { if(e.target === infoOverlay) closeInfo() });
+window.addEventListener("keydown", e => { if(e.key === "Escape" && infoOpen) closeInfo() });
+
+// ─── Iconos ───────────────────────────────────────────────────
+const stopIcon = L.divIcon({className:"stop-icon", html:"🚏", iconSize:[42,42], iconAnchor:[21,21]});
+const makeBusIconHtml = m => `<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚍</span></div>`;
+
+let busIsMoving = false;
+let busIcon = L.divIcon({className:"", html:makeBusIconHtml(false), iconSize:[30,30], iconAnchor:[15,15]});
+const busMarker = L.marker([0,0], {icon:busIcon}).addTo(map);
+
+function buildBusPopupHtml(speedKmh, isMoving) {
+  const estadoTxt = isMoving ? "Movimiento" : "Detenido";
+  return `<div class="popup-wrap">
+    <span class="popup-title">🚌​ Bus</span>
+    <span class="popup-line">Velocidad Bus: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
+    <span class="popup-line">Estado: <span class="popup-val ${isMoving?"moving":"stopped"}">${estadoTxt}</span></span>
+  </div>`;
+}
+busMarker.bindPopup(buildBusPopupHtml(0, false));
+busMarker.on("popupopen", () => pauseFollowFor());
+
+// ─── Auto-follow ──────────────────────────────────────────────
+const FOLLOW_RESUME_MS = 60000;
+let followEnabled = true, followTimer = null, lastLatLng = null;
+
+function pauseFollowFor(ms = FOLLOW_RESUME_MS) {
+  followEnabled = false;
+  if(followTimer) clearTimeout(followTimer);
+  followTimer = setTimeout(() => {
+    followEnabled = true;
+    if(lastLatLng) map.setView(lastLatLng, map.getZoom(), {animate:true, duration:0.6})
+  }, ms);
+}
+map.on("zoomstart",  () => pauseFollowFor());
+map.on("zoom",       () => pauseFollowFor());
+map.on("dragstart",  () => pauseFollowFor());
+map.on("movestart",  () => pauseFollowFor());
+
+// ─── Ruta verde ───────────────────────────────────────────────
+const trailLatLngs = [], MAX_POINTS = 5000;
+const trailLine = L.polyline(trailLatLngs, {color:"green", weight:6, opacity:0.9}).addTo(map);
+const trailHead = L.polyline([],           {color:"green", weight:6, opacity:0.9}).addTo(map);
+let trailVisible = true;
+
+document.getElementById("btnToggleTrail").addEventListener("click", e => {
+  trailVisible = !trailVisible;
+  if(trailVisible) {
+    trailLine.setLatLngs(trailLatLngs);
+    if(!map.hasLayer(trailLine)) trailLine.addTo(map);
+    if(!map.hasLayer(trailHead)) trailHead.addTo(map);
+    e.target.textContent = "🟢 Ruta: Si";
+  } else {
+    if(map.hasLayer(trailLine)) map.removeLayer(trailLine);
+    if(map.hasLayer(trailHead)) map.removeLayer(trailHead);
+    e.target.textContent = "⚫ Ruta: No";
+  }
+});
+
+// ─── Util ─────────────────────────────────────────────────────
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000, toRad = x => x * Math.PI / 180;
+  const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+function formatDist(m) {
+  if(!isFinite(m) || m <= 0) return "--";
+  return (m < 1000) ? `${m.toFixed(0)} m` : `${(m/1000).toFixed(2)} km`;
+}
+function formatETA(sec) {
+  if(!isFinite(sec) || sec <= 0) return "--";
+  const m = Math.round(sec/60);
+  if(m < 1)  return "< 1 min";
+  if(m < 60) return `${m} min`;
+  return `${Math.floor(m/60)} h ${m%60} min`;
+}
+const ema  = (p, x, a) => (p == null) ? x : (a*x + (1-a)*p);
+const ema2 = (p, x, a) => !p ? x : [ema(p[0],x[0],a), ema(p[1],x[1],a)];
+
+// ─── ETA ──────────────────────────────────────────────────────
+const ROUTE_FACTOR = 1.45, ETA_BIAS_SEC = 45, DEFAULT_SPEED_KMH = 3.0;
+const SPEED_ALPHA = 0.35, MIN_USABLE_SPEED_KMH = 2.0, MAX_REASONABLE_SPEED_KMH = 55;
+let speedSmoothed = null, lastGoodSpeed = null;
+
+function pickSpeedKmh(rawSpeedKmh) {
+  let s = Number(rawSpeedKmh || 0);
+  if(!isFinite(s) || s < 0) s = 0;
+  if(s > MAX_REASONABLE_SPEED_KMH) s = MAX_REASONABLE_SPEED_KMH;
+  speedSmoothed = ema(speedSmoothed, s, SPEED_ALPHA);
+  if(isFinite(speedSmoothed) && speedSmoothed >= MIN_USABLE_SPEED_KMH) lastGoodSpeed = speedSmoothed;
+  if(isFinite(speedSmoothed) && speedSmoothed >= MIN_USABLE_SPEED_KMH) return speedSmoothed;
+  if(isFinite(lastGoodSpeed) && lastGoodSpeed >= MIN_USABLE_SPEED_KMH) return lastGoodSpeed;
+  return DEFAULT_SPEED_KMH;
+}
+function calcEtaSeconds(distStraightM, usedSpeedKmh) {
+  const distRoadM = distStraightM * ROUTE_FACTOR;
+  const speedMs   = usedSpeedKmh / 3.6;
+  return (distRoadM / Math.max(speedMs, 0.1)) + ETA_BIAS_SEC;
+}
+
+// ─── Snap a calle ─────────────────────────────────────────────
+const SNAP_MIN_MOVE_M = 10, SNAP_MAX_ERR_M = 35, SNAP_TTL_MS = 15000;
+const snapCache = new Map();
+let lastSnapRaw = null, lastSnapped = null, snapPending = false;
+const snapKey = (lat, lon) => `${lat.toFixed(5)},${lon.toFixed(5)}`;
+
+async function snapToRoad(lat, lon) {
+  const k = snapKey(lat, lon);
+  if(snapCache.has(k)) return snapCache.get(k);
+  const r = await fetch(`https://router.project-osrm.org/nearest/v1/driving/${lon},${lat}?number=1`);
+  if(!r.ok) throw 0;
+  const j = await r.json();
+  const loc = j?.waypoints?.[0]?.location;
+  if(!loc) throw 0;
+  const pt = [loc[1], loc[0]];
+  snapCache.set(k, pt);
+  return pt;
+}
+function maybeRequestSnap(rawLat, rawLon) {
+  if(snapPending) return;
+  if(!lastSnapRaw) lastSnapRaw = [rawLat, rawLon];
+  const moved = haversineMeters(lastSnapRaw[0], lastSnapRaw[1], rawLat, rawLon);
+  if(moved < SNAP_MIN_MOVE_M) return;
+  snapPending = true;
+  const reqLat = rawLat, reqLon = rawLon;
+  lastSnapRaw = [rawLat, rawLon];
+  snapToRoad(reqLat, reqLon).then(pt => {
+    const err = haversineMeters(reqLat, reqLon, pt[0], pt[1]);
+    if(err <= SNAP_MAX_ERR_M) lastSnapped = {pt, t:Date.now()};
+  }).catch(()=>{}).finally(()=>{ snapPending = false });
+}
+function pickRoadPoint(rawLat, rawLon) {
+  maybeRequestSnap(rawLat, rawLon);
+  if(lastSnapped && (Date.now()-lastSnapped.t) <= SNAP_TTL_MS) {
+    const err = haversineMeters(rawLat, rawLon, lastSnapped.pt[0], lastSnapped.pt[1]);
+    if(err <= SNAP_MAX_ERR_M) return lastSnapped.pt;
+  }
+  return [rawLat, rawLon];
+}
+
+// ─── Filtro / ruta ────────────────────────────────────────────
+const SMOOTH_ALPHA_POS = 0.45, MIN_ADD_DIST_M = 3, MAX_JUMP_DRAW_M = 200;
+let lastStableDraw = null, lastSmoothed = null;
+
+function pushTrail(latLng) {
+  trailLatLngs.push(latLng);
+  if(trailLatLngs.length > MAX_POINTS) trailLatLngs.shift();
+  if(trailVisible) trailLine.setLatLngs(trailLatLngs);
+}
+function stablePoint(lat, lon) {
+  const p = [lat, lon];
+  if(!lastStableDraw) { lastStableDraw = p; return p; }
+  if(haversineMeters(lastStableDraw[0], lastStableDraw[1], p[0], p[1]) > MAX_JUMP_DRAW_M) return lastStableDraw;
+  lastStableDraw = p;
+  return p;
+}
+function updateGreenTrailForced(rawLat, rawLon) {
+  const p0     = stablePoint(rawLat, rawLon);
+  const roadPt = pickRoadPoint(p0[0], p0[1]);
+  lastSmoothed = ema2(lastSmoothed, roadPt, SMOOTH_ALPHA_POS);
+  const p      = lastSmoothed;
+  if(trailLatLngs.length === 0) pushTrail(p);
+  else {
+    const last = trailLatLngs[trailLatLngs.length-1];
+    if(haversineMeters(last[0], last[1], p[0], p[1]) >= MIN_ADD_DIST_M) pushTrail(p);
+  }
+  if(trailVisible) trailHead.setLatLngs([p, [rawLat, rawLon]]);
+}
+
+// ─── Paradas ──────────────────────────────────────────────────
+const stops = [
+  {id:"p1", name:"Parada 1", lat:0.2308,  lon:-78.25777},
+  {id:"p2", name:"Parada 2", lat:0.22938, lon:-78.25877},
+  {id:"p3", name:"Parada 3", lat:0.23075, lon:-78.26084},
+  {id:"p4", name:"Parada 4", lat:0.23180, lon:-78.26224},
+  {id:"p5", name:"Parada 5", lat:0.22984, lon:-78.26385},
+  {id:"p6", name:"Parada 6", lat:0.22785, lon:-78.26531},
+  {id:"p7", name:"Parada 7", lat:0.22665, lon:-78.26677},
+  {id:"p8", name:"Parada 8", lat:0.22999, lon:-78.26621},
+  {id:"p9", name:"Parada 9", lat:0.23139, lon:-78.26623},
+  {id:"p10",name:"Parada 10",lat:0.23271, lon:-78.26802},
+  {id:"p11",name:"Parada 11",lat:0.23999, lon:-78.28425},
+  {id:"p12",name:"Parada 12",lat:0.23828, lon:-78.2876},
+  {id:"p13",name:"Parada 13",lat:0.23716, lon:-78.28993},
+  {id:"p14",name:"Parada 14",lat:0.23643, lon:-78.29141},
+  {id:"p15",name:"Parada 15",lat:0.23563, lon:-78.29283},
+  {id:"p16",name:"Parada 16",lat:0.23510, lon:-78.29124},
+  {id:"p17",name:"Parada 17",lat:0.23576, lon:-78.29013},
+  {id:"p18",name:"Parada 18",lat:0.23641, lon:-78.28886},
+  {id:"p19",name:"Parada 19",lat:0.23688, lon:-78.28772},
+  {id:"p20",name:"Parada 20",lat:0.23796, lon:-78.28809},
+  {id:"p21",name:"Parada 21",lat:0.23866, lon:-78.28675},
+  {id:"p22",name:"Parada 22",lat:0.23993, lon:-78.28424},
+  {id:"p23",name:"Parada 23",lat:0.2339,  lon:-78.26907},
+  {id:"p24",name:"Parada 24",lat:0.23162, lon:-78.26659},
+  {id:"p25",name:"Parada 25",lat:0.23054, lon:-78.2644},
+  {id:"p26",name:"Parada 26",lat:0.23234, lon:-78.26315},
+  {id:"p27",name:"Parada 27",lat:0.23144, lon:-78.26194},
+  {id:"p28",name:"Parada 28",lat:0.2294,  lon:-78.25925},
+  {id:"p29",name:"Parada 29",lat:0.23084, lon:-78.25798}
+];
+
+const stopMarkers = new Map();
+let activeStopId = null;
+
+function buildStopPopupHtml(name, etaTxt="--", distTxt="--", speedTxt="--") {
+  return `<div class="stop-popup-wrap">
+    <span class="stop-popup-title">🚏 ${name}</span>
+    <span class="stop-popup-line">Llegada Bus: ${etaTxt}</span>
+    <span class="stop-popup-line">Distancia Bus: ${distTxt}</span>
+    <span class="stop-popup-line">Velocidad Bus: ${speedTxt}</span>
+  </div>`;
+}
+
+stops.forEach(s => {
+  const m = L.marker([s.lat, s.lon], {icon:stopIcon}).addTo(map);
+  m.bindPopup(buildStopPopupHtml(s.name));
+  m.on("popupopen",  () => { activeStopId = s.id; pauseFollowFor() });
+  m.on("popupclose", () => { if(activeStopId === s.id) activeStopId = null });
+  stopMarkers.set(s.id, m);
+});
+
+// ─── NodoFijo marker ─────────────────────────────────────────
+const NODO_FIJO_ID = "NodoFijo";
+let nodoFijoMarker = null;
+let nodoFijoLast   = {dist_m:null, eta_s:null};
+
+function buildNodoFijoPopupHtml(speedKmh) {
+  const distTxt = (isFinite(nodoFijoLast.dist_m) && nodoFijoLast.dist_m >= 0) ? formatDist(nodoFijoLast.dist_m) : "--";
+  const etaTxt  = (isFinite(nodoFijoLast.eta_s)  && nodoFijoLast.eta_s  > 0)  ? formatETA(nodoFijoLast.eta_s)  : "--";
+  return buildStopPopupHtml("NodoFijo", etaTxt, distTxt, `${Number(speedKmh||0).toFixed(1)} km/h`);
+}
+function upsertNodoFijoMarker(lat, lon) {
+  if(!nodoFijoMarker) {
+    nodoFijoMarker = L.marker([lat,lon], {icon:stopIcon}).addTo(map);
+    nodoFijoMarker.bindPopup(buildNodoFijoPopupHtml(0));
+    nodoFijoMarker.on("popupopen",  () => { activeStopId = NODO_FIJO_ID; pauseFollowFor() });
+    nodoFijoMarker.on("popupclose", () => { if(activeStopId === NODO_FIJO_ID) activeStopId = null });
+    stopMarkers.set(NODO_FIJO_ID, nodoFijoMarker);
+  } else nodoFijoMarker.setLatLng([lat, lon]);
+}
+
+// ─── Estado bus ───────────────────────────────────────────────
+function setBusMovingState(isMoving) {
+  if(busIsMoving === isMoving) return;
+  busIsMoving = isMoving;
+  busIcon = L.divIcon({className:"", html:makeBusIconHtml(busIsMoving), iconSize:[24,24], iconAnchor:[12,12]});
+  busMarker.setIcon(busIcon);
+  const el = document.getElementById("busState");
+  if(el) {
+    el.classList.toggle("moving",  isMoving);
+    el.classList.toggle("stopped", !isMoving);
+    el.textContent = isMoving ? "Movimiento" : "Detenido";
+  }
+}
+
+// ─── Firebase listeners ───────────────────────────────────────
+const gpsRef = ref(db, "NodoMovil");
+const nfRef  = ref(db, "NodoFijo");
+
+onValue(nfRef, snap => {
+  const d = snap.val();
+  if(!d) return;
+  latestFijoData = d;
+  if(infoOpen) renderInfo();
+  const lat = Number(d.lat||0), lon = Number(d.lon||0);
+  if(!lat || !lon) return;
+  nodoFijoLast.dist_m = (d.bus_dist_m !== undefined) ? Number(d.bus_dist_m) : null;
+  nodoFijoLast.eta_s  = (d.bus_eta_s  !== undefined) ? Number(d.bus_eta_s)  : null;
+  upsertNodoFijoMarker(lat, lon);
+});
+
+onValue(gpsRef, snap => {
+  const d = snap.val();
+  if(!d) return;
+  latestBusData = d;
+  if(infoOpen) renderInfo();
+});
+
+// ─── Aplica datos a UI y mapa ─────────────────────────────────
+function applyBusDataToUIAndMap(d) {
+  const lat = Number(d.lat||0), lon = Number(d.lon||0);
+  if(!lat || !lon) return null;
+  const rawSpeedKmh  = Number(d.speed_kmh||0);
+  const usedSpeedKmh = pickSpeedKmh(rawSpeedKmh);
+  document.getElementById("hora").textContent = d.hora_ecuador ?? "--";
+  setBusMovingState(rawSpeedKmh >= 1.0);
+  const busPos = [lat, lon];
+  busMarker.setLatLng(busPos);
+  if(followEnabled) map.panTo(busPos, {animate:true, duration:0.4});
+  if(!lastLatLng) map.setView(busPos, 16);
+  lastLatLng = busPos;
+  const popupHtml = buildBusPopupHtml(rawSpeedKmh, busIsMoving);
+  if(busMarker.getPopup()) busMarker.setPopupContent(popupHtml);
+  else busMarker.bindPopup(popupHtml);
+  return {lat, lon, rawSpeedKmh, usedSpeedKmh};
+}
+
+// ─── Loop principal cada 3 s ──────────────────────────────────
+setInterval(() => {
+  if(!latestBusData) return;
+  const info = applyBusDataToUIAndMap(latestBusData);
+  if(!info) return;
+  updateGreenTrailForced(info.lat, info.lon);
+  if(activeStopId) {
+    if(activeStopId === NODO_FIJO_ID && nodoFijoMarker) {
+      nodoFijoMarker.setPopupContent(buildNodoFijoPopupHtml(info.usedSpeedKmh));
+    } else {
+      const s = stops.find(x => x.id === activeStopId);
+      const m = stopMarkers.get(activeStopId);
+      if(s && m) {
+        const dist2 = haversineMeters(info.lat, info.lon, s.lat, s.lon);
+        const eta2  = formatETA(calcEtaSeconds(dist2, info.usedSpeedKmh));
+        m.setPopupContent(buildStopPopupHtml(s.name, eta2, formatDist(dist2), `${info.usedSpeedKmh.toFixed(1)} km/h`));
+      }
+    }
+  }
+  if(busMarker.isPopupOpen()) busMarker.setPopupContent(buildBusPopupHtml(info.rawSpeedKmh, busIsMoving));
+}, 3000);
+</script>
+</body>
+</html>
