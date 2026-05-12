@@ -261,7 +261,7 @@ const db = getDatabase(initializeApp(firebaseConfig));
 const map = L.map("map", {
   zoomControl: false,       // lo recreamos abajo a la derecha
   tap: true, tapTolerance: 15
-}).setView([0.23299010950077462, -78.26316758796887], 16);
+}).setView([0.23299010950077462, -78.26316758796887], 18);
 
 // Zoom control en esquina inferior derecha
 L.control.zoom({ position: "bottomright" }).addTo(map);
