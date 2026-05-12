@@ -179,7 +179,7 @@
     .leaflet-bottom.leaflet-right { display: none !important; }
 
     /* ── Popups ── */
-    .popup-wrap      { width: clamp(130px,35vw,170px); font-family: Arial,sans-serif; }
+    .popup-wrap      { width: clamp(180px,45vw,220px); font-family: Arial,sans-serif; }
     .stop-popup-wrap { width: clamp(140px,38vw,5px); font-family: Arial,sans-serif; }
 
     .popup-title, .popup-line,
@@ -350,13 +350,23 @@ function renderInfo() {
   const m=latestBusData||{}, f=latestFijoData||{};
   const movilVel=(m.speed_kmh!==undefined&&isFinite(Number(m.speed_kmh)))
     ?`${Number(m.speed_kmh).toFixed(1)} km/h`:"--";
+  const rssiTxt=(m.rssi!==undefined&&m.rssi!==null)?`${safeVal(m.rssi)} dBm`:"--";
   infoMovilEl.innerHTML=makeLines([
     `Hora: ${safeVal(m.hora_ecuador)}`,
     `Latitud: ${m.lat!==undefined?safeNum(m.lat,6):"--"}`,
     `Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
     `Satélites: ${safeVal(m.satelites)}`,
     `Velocidad: ${movilVel}`,
-    `HDOP: ${safeVal(m.hdop)}`
+    `HDOP: ${safeVal(m.hdop)}`,
+    `─────────────`,
+    `SSID: ${safeVal(m.ssid)}`,
+    `IP Local: ${safeVal(m.ip_local)}`,
+    `Gateway: ${safeVal(m.gateway)}`,
+    `Subnet: ${safeVal(m.subnet)}`,
+    `DNS: ${safeVal(m.dns)}`,
+    `MAC: ${safeVal(m.mac)}`,
+    `RSSI: ${rssiTxt}`,
+    `Canal: ${safeVal(m.canal)}`
   ]);
   let fijoFlag="--";
   if(f.fijo_ok!==undefined) fijoFlag=boolToSiNo(f.fijo_ok);
@@ -386,11 +396,22 @@ let busIsMoving=false;
 let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[34,34],iconAnchor:[17,17]});
 const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
 
-function buildBusPopupHtml(speedKmh,isMoving){
+function buildBusPopupHtml(speedKmh,isMoving,d){
+  d=d||{};
+  const sv=v=>(v===undefined||v===null||String(v).trim()==="")?'--':String(v);
   return `<div class="popup-wrap">
     <span class="popup-title">🚛 Recolector</span>
     <span class="popup-line">Velocidad: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
     <span class="popup-line">Estado: <span class="popup-val ${isMoving?"moving":"stopped"}">${isMoving?"Movimiento":"Detenido"}</span></span>
+    <span class="popup-sep"></span>
+    <span class="popup-line">SSID: ${sv(d.ssid)}</span>
+    <span class="popup-line">IP Local: ${sv(d.ip_local)}</span>
+    <span class="popup-line">Gateway: ${sv(d.gateway)}</span>
+    <span class="popup-line">Subnet: ${sv(d.subnet)}</span>
+    <span class="popup-line">DNS: ${sv(d.dns)}</span>
+    <span class="popup-line">MAC: ${sv(d.mac)}</span>
+    <span class="popup-line">RSSI: ${sv(d.rssi)}${d.rssi!==undefined&&d.rssi!==null?' dBm':''}</span>
+    <span class="popup-line">Canal: ${sv(d.canal)}</span>
   </div>`;
 }
 busMarker.bindPopup(buildBusPopupHtml(0,false));
@@ -653,7 +674,7 @@ function applyBusDataToUIAndMap(d){
   if(followEnabled) map.panTo(busPos,{animate:true,duration:0.4});
   if(!lastLatLng) map.setView(busPos,16);
   lastLatLng=busPos;
-  const ph=buildBusPopupHtml(rawSpeedKmh,busIsMoving);
+  const ph=buildBusPopupHtml(rawSpeedKmh,busIsMoving,d);
   if(busMarker.getPopup()) busMarker.setPopupContent(ph);
   else busMarker.bindPopup(ph);
   return{lat,lon,rawSpeedKmh,usedSpeedKmh};
