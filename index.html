@@ -127,11 +127,22 @@
     .leaflet-marker-shadow { display: none !important; }
     .leaflet-popup-content { font-family: Arial,sans-serif !important; font-weight: normal !important; }
 
-    /* Zoom en esquina inferior derecha */
+    /* Zoom en esquina inferior izquierda */
     .leaflet-top.leaflet-left  { display: none; }   /* oculta posición original */
-    .leaflet-bottom.leaflet-right {
+    .leaflet-bottom.leaflet-left {
       bottom: clamp(12px,3vw,24px);
-      right:  clamp(8px,2vw,14px);
+      left:   clamp(8px,2vw,14px);
+    }
+
+    /* Atribución a la izquierda con bordes redondos */
+    .leaflet-bottom.leaflet-right { display: none; }
+    .leaflet-control-attribution {
+      border-radius: 10px !important;
+      padding: 2px 8px !important;
+      font-size: clamp(9px,1.5vw,11px) !important;
+      background: rgba(255,255,255,.78) !important;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
     }
 
     /* ── Popups ── */
@@ -272,12 +283,15 @@ const map = L.map("map", {
   tap: true, tapTolerance: 15
 }).setView([0.23299010950077462, -78.26316758796887], 14);
 
-// Zoom control en esquina inferior derecha
-L.control.zoom({ position: "bottomright" }).addTo(map);
+// Zoom control en esquina inferior izquierda
+L.control.zoom({ position: "bottomleft" }).addTo(map);
 
 map.attributionControl.setPrefix("Red Otavalo Telecomunicaciones");
+// Mover atribución a esquina inferior izquierda
+map.removeControl(map.attributionControl);
+L.control.attribution({ position: "bottomleft", prefix: "Red Otavalo Telecomunicaciones" }).addTo(map);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19, detectRetina: true
+  maxZoom: 19, detectRetina: true, attribution: ""
 }).addTo(map);
 
 map.on("popupopen", e =>
