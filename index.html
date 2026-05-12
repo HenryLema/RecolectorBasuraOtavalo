@@ -27,7 +27,7 @@
     /* ── Mapa ── */
     #map { position: fixed; inset: 0; z-index: 0; }
 
-    /* ── Barra superior ── */
+    /* ── Barra superior: una sola fila siempre ── */
     #top {
       position: fixed;
       top: 0; left: 0; right: 0;
@@ -38,6 +38,7 @@
     }
     #top > * { pointer-events: auto; }
 
+    /* Fila única con todos los elementos alineados */
     #topRow {
       display: flex;
       flex-wrap: wrap;
@@ -45,10 +46,11 @@
       gap: clamp(4px,1.2vw,7px);
     }
 
+    /* Estilo base compartido por cajas Y botones */
     .chip {
       display: inline-flex;
       align-items: center;
-      height: clamp(26px,5vw,34px);
+      height: clamp(26px,5vw,34px);        /* misma altura para todos */
       padding: 0 clamp(6px,1.8vw,11px);
       border: 1px solid rgba(200,200,200,.85);
       border-radius: 10px;
@@ -70,6 +72,7 @@
     }
     button.chip:active { background: rgba(210,210,210,.95); transform: scale(.97); }
 
+    /* Caja título — puede crecer y hacer wrap de texto */
     .title-chip {
       height: auto;
       min-height: clamp(26px,5vw,34px);
@@ -92,13 +95,14 @@
     .busstate-pill.moving  { background: #008000; }
     .busstate-pill.stopped { background: #cc0000; }
 
-    /* ── Marcador bus — sin borde ── */
+    /* ── Marcador bus ── */
     .bus-wrap {
       width: clamp(26px,5vw,34px);
       height: clamp(26px,5vw,34px);
       border-radius: 999px;
       display: flex; align-items: center; justify-content: center;
       transform: translate(-50%,-50%);
+      border: 2px solid rgba(255,255,255,.9);
       user-select: none;
     }
     .bus-wrap.moving  { background: #008000; }
@@ -106,80 +110,23 @@
     .bus-emoji { font-size: clamp(14px,3vw,20px); line-height: 1; }
 
     /* ── Paradas ── */
-    .stop-icon {
-      width: clamp(26px,5vw,34px);
-      height: clamp(26px,5vw,34px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transform: translate(-50%,-50%);
-      font-size: clamp(14px,3vw,20px);
-      line-height: 1;
-    }
+    .stop-icon { font-size: clamp(22px,4vw,32px); transform: translate(-50%,-50%); }
 
-    /* ── Leaflet: eliminar todas las sombras y bordes de controles ── */
+    /* ── Leaflet: sin sombras ni efectos ── */
     .leaflet-popup-content-wrapper,
-    .leaflet-popup-tip          { box-shadow: none !important; }
-    .leaflet-marker-shadow      { display: none !important; }
-    .leaflet-popup-content      { font-family: Arial,sans-serif !important; font-weight: normal !important; }
+    .leaflet-popup-tip     { box-shadow: none !important; }
+    .leaflet-marker-shadow { display: none !important; }
+    .leaflet-popup-content { font-family: Arial,sans-serif !important; font-weight: normal !important; }
 
-    .leaflet-control-zoom,
-    .leaflet-control-zoom a,
-    .leaflet-control-attribution {
-      box-shadow: none !important;
-      border: none !important;
-      outline: none !important;
-    }
-
-    /* ── Controles: esquina inferior IZQUIERDA ── */
-    .leaflet-bottom.leaflet-left {
+    /* Zoom en esquina inferior derecha */
+    .leaflet-top.leaflet-left  { display: none; }   /* oculta posición original */
+    .leaflet-bottom.leaflet-right {
       bottom: clamp(12px,3vw,24px);
-      left:   clamp(8px,2vw,14px);
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: clamp(4px,1vw,6px);
+      right:  clamp(8px,2vw,14px);
     }
-
-    /* Zoom con bordes redondos */
-    .leaflet-control-zoom {
-      border-radius: 10px !important;
-      overflow: hidden;
-      background: rgba(255,255,255,.78) !important;
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-    }
-    .leaflet-control-zoom a {
-      background: transparent !important;
-      color: #333 !important;
-      font-size: 16px !important;
-      line-height: clamp(26px,5vw,34px) !important;
-      width:  clamp(26px,5vw,34px) !important;
-      height: clamp(26px,5vw,34px) !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-    }
-    .leaflet-control-zoom a:hover { background: rgba(210,210,210,.6) !important; }
-
-    /* Attribution con bordes redondos, debajo del zoom */
-    .leaflet-control-attribution {
-      border-radius: 10px !important;
-      background: rgba(255,255,255,.78) !important;
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      padding: clamp(3px,1vw,5px) clamp(6px,1.8vw,10px) !important;
-      font-size: clamp(9px,1.6vw,11px) !important;
-      color: #333 !important;
-      margin: 0 !important;
-      float: none !important;
-    }
-
-    /* Ocultar esquina derecha que Leaflet añade por defecto */
-    .leaflet-bottom.leaflet-right { display: none !important; }
 
     /* ── Popups ── */
-    .popup-wrap      { width: clamp(180px,45vw,220px); font-family: Arial,sans-serif; }
+    .popup-wrap      { width: clamp(130px,35vw,170px); font-family: Arial,sans-serif; }
     .stop-popup-wrap { width: clamp(140px,38vw,5px); font-family: Arial,sans-serif; }
 
     .popup-title, .popup-line,
@@ -258,9 +205,16 @@
 <body>
   <div id="top">
     <div id="topRow">
+      <!-- título -->
       <div class="chip title-chip">Recolector Basura Otavalo</div>
+
+      <!-- hora -->
       <div class="chip">Hora: <span id="hora" style="margin-left:3px">--</span></div>
+
+      <!-- estado -->
       <div class="chip">Estado:&nbsp;<span id="busState" class="busstate-pill stopped">Detenido</span></div>
+
+      <!-- botones -->
       <button id="btnReload"      class="chip">🔃 Recargar</button>
       <button id="btnToggleTrail" class="chip">🟢 Ruta: Si</button>
       <button id="btnInfo"        class="chip">ℹ️ Info</button>
@@ -305,17 +259,14 @@ const db = getDatabase(initializeApp(firebaseConfig));
 
 // ─── Mapa ─────────────────────────────────────────────────────
 const map = L.map("map", {
-  zoomControl: false,
-  tap: true, tapTolerance: 15,
-  attributionControl: false   // recreamos manualmente a la izquierda
+  zoomControl: false,       // lo recreamos abajo a la derecha
+  tap: true, tapTolerance: 15
 }).setView([0.23299010950077462, -78.26316758796887], 14);
 
-// Zoom en esquina inferior izquierda
-L.control.zoom({ position: "bottomleft" }).addTo(map);
+// Zoom control en esquina inferior derecha
+L.control.zoom({ position: "bottomright" }).addTo(map);
 
-// Attribution en esquina inferior izquierda (se apila sobre el zoom por orden de adición)
-L.control.attribution({ position: "bottomleft", prefix: "Red Otavalo Telecomunicaciones" }).addTo(map);
-
+map.attributionControl.setPrefix("Red Otavalo Telecomunicaciones");
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19, detectRetina: true
 }).addTo(map);
@@ -350,23 +301,13 @@ function renderInfo() {
   const m=latestBusData||{}, f=latestFijoData||{};
   const movilVel=(m.speed_kmh!==undefined&&isFinite(Number(m.speed_kmh)))
     ?`${Number(m.speed_kmh).toFixed(1)} km/h`:"--";
-  const rssiTxt=(m.rssi!==undefined&&m.rssi!==null)?`${safeVal(m.rssi)} dBm`:"--";
   infoMovilEl.innerHTML=makeLines([
     `Hora: ${safeVal(m.hora_ecuador)}`,
     `Latitud: ${m.lat!==undefined?safeNum(m.lat,6):"--"}`,
     `Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
     `Satélites: ${safeVal(m.satelites)}`,
     `Velocidad: ${movilVel}`,
-    `HDOP: ${safeVal(m.hdop)}`,
-    `─────────────`,
-    `SSID: ${safeVal(m.ssid)}`,
-    `IP Local: ${safeVal(m.ip_local)}`,
-    `Gateway: ${safeVal(m.gateway)}`,
-    `Subnet: ${safeVal(m.subnet)}`,
-    `DNS: ${safeVal(m.dns)}`,
-    `MAC: ${safeVal(m.mac)}`,
-    `RSSI: ${rssiTxt}`,
-    `Canal: ${safeVal(m.canal)}`
+    `HDOP: ${safeVal(m.hdop)}`
   ]);
   let fijoFlag="--";
   if(f.fijo_ok!==undefined) fijoFlag=boolToSiNo(f.fijo_ok);
@@ -389,29 +330,18 @@ infoOverlay.addEventListener("click", e=>{ if(e.target===infoOverlay) closeInfo(
 window.addEventListener("keydown",   e=>{ if(e.key==="Escape"&&infoOpen) closeInfo(); });
 
 // ─── Iconos ───────────────────────────────────────────────────
-const stopIcon=L.divIcon({className:"stop-icon",html:"🗑️",iconSize:[34,34],iconAnchor:[17,17]});
+const stopIcon=L.divIcon({className:"stop-icon",html:"🗑️",iconSize:[36,36],iconAnchor:[18,18]});
 const makeBusIconHtml=m=>`<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚚</span></div>`;
 
 let busIsMoving=false;
-let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[34,34],iconAnchor:[17,17]});
+let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[30,30],iconAnchor:[15,15]});
 const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
 
-function buildBusPopupHtml(speedKmh,isMoving,d){
-  d=d||{};
-  const sv=v=>(v===undefined||v===null||String(v).trim()==="")?'--':String(v);
+function buildBusPopupHtml(speedKmh,isMoving){
   return `<div class="popup-wrap">
     <span class="popup-title">🚛 Recolector</span>
     <span class="popup-line">Velocidad: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
     <span class="popup-line">Estado: <span class="popup-val ${isMoving?"moving":"stopped"}">${isMoving?"Movimiento":"Detenido"}</span></span>
-    <span class="popup-sep"></span>
-    <span class="popup-line">SSID: ${sv(d.ssid)}</span>
-    <span class="popup-line">IP Local: ${sv(d.ip_local)}</span>
-    <span class="popup-line">Gateway: ${sv(d.gateway)}</span>
-    <span class="popup-line">Subnet: ${sv(d.subnet)}</span>
-    <span class="popup-line">DNS: ${sv(d.dns)}</span>
-    <span class="popup-line">MAC: ${sv(d.mac)}</span>
-    <span class="popup-line">RSSI: ${sv(d.rssi)}${d.rssi!==undefined&&d.rssi!==null?' dBm':''}</span>
-    <span class="popup-line">Canal: ${sv(d.canal)}</span>
   </div>`;
 }
 busMarker.bindPopup(buildBusPopupHtml(0,false));
@@ -634,7 +564,7 @@ function upsertNodoFijoMarker(lat,lon){
 function setBusMovingState(isMoving){
   if(busIsMoving===isMoving) return;
   busIsMoving=isMoving;
-  busIcon=L.divIcon({className:"",html:makeBusIconHtml(busIsMoving),iconSize:[34,34],iconAnchor:[17,17]});
+  busIcon=L.divIcon({className:"",html:makeBusIconHtml(busIsMoving),iconSize:[30,30],iconAnchor:[15,15]});
   busMarker.setIcon(busIcon);
   const el=document.getElementById("busState");
   if(el){
@@ -674,7 +604,7 @@ function applyBusDataToUIAndMap(d){
   if(followEnabled) map.panTo(busPos,{animate:true,duration:0.4});
   if(!lastLatLng) map.setView(busPos,16);
   lastLatLng=busPos;
-  const ph=buildBusPopupHtml(rawSpeedKmh,busIsMoving,d);
+  const ph=buildBusPopupHtml(rawSpeedKmh,busIsMoving);
   if(busMarker.getPopup()) busMarker.setPopupContent(ph);
   else busMarker.bindPopup(ph);
   return{lat,lon,rawSpeedKmh,usedSpeedKmh};
