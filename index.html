@@ -127,7 +127,7 @@
 
     /* ── Popups ── */
     .popup-wrap      { width: clamp(130px,35vw,170px); font-family: Arial,sans-serif; }
-    .stop-popup-wrap { width: clamp(140px,38vw,185px); font-family: Arial,sans-serif; }
+    .stop-popup-wrap { width: clamp(140px,38vw,5px); font-family: Arial,sans-serif; }
 
     .popup-title, .popup-line,
     .stop-popup-title, .stop-popup-line {
@@ -261,7 +261,7 @@ const db = getDatabase(initializeApp(firebaseConfig));
 const map = L.map("map", {
   zoomControl: false,       // lo recreamos abajo a la derecha
   tap: true, tapTolerance: 15
-}).setView([0.23299010950077462, -78.26316758796887], 18);
+}).setView([0.23299010950077462, -78.26316758796887], 15);
 
 // Zoom control en esquina inferior derecha
 L.control.zoom({ position: "bottomright" }).addTo(map);
