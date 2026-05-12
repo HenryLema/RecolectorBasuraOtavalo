@@ -109,8 +109,17 @@
     .bus-wrap.stopped { background: #cc0000; }
     .bus-emoji { font-size: clamp(14px,3vw,20px); line-height: 1; }
 
-    /* ── Paradas ── */
-    .stop-icon { font-size: clamp(22px,4vw,32px); transform: translate(-50%,-50%); }
+    /* ── Paradas ── igual tamaño que .bus-wrap ── */
+    .stop-icon {
+      width: clamp(26px,5vw,34px);
+      height: clamp(26px,5vw,34px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transform: translate(-50%,-50%);
+      font-size: clamp(14px,3vw,20px);
+      line-height: 1;
+    }
 
     /* ── Leaflet: sin sombras ni efectos ── */
     .leaflet-popup-content-wrapper,
@@ -330,11 +339,11 @@ infoOverlay.addEventListener("click", e=>{ if(e.target===infoOverlay) closeInfo(
 window.addEventListener("keydown",   e=>{ if(e.key==="Escape"&&infoOpen) closeInfo(); });
 
 // ─── Iconos ───────────────────────────────────────────────────
-const stopIcon=L.divIcon({className:"stop-icon",html:"🗑️",iconSize:[36,36],iconAnchor:[18,18]});
+const stopIcon=L.divIcon({className:"stop-icon",html:"🗑️",iconSize:[34,34],iconAnchor:[17,17]});
 const makeBusIconHtml=m=>`<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚚</span></div>`;
 
 let busIsMoving=false;
-let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[30,30],iconAnchor:[15,15]});
+let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[34,34],iconAnchor:[17,17]});
 const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
 
 function buildBusPopupHtml(speedKmh,isMoving){
@@ -564,7 +573,7 @@ function upsertNodoFijoMarker(lat,lon){
 function setBusMovingState(isMoving){
   if(busIsMoving===isMoving) return;
   busIsMoving=isMoving;
-  busIcon=L.divIcon({className:"",html:makeBusIconHtml(busIsMoving),iconSize:[30,30],iconAnchor:[15,15]});
+  busIcon=L.divIcon({className:"",html:makeBusIconHtml(busIsMoving),iconSize:[34,34],iconAnchor:[17,17]});
   busMarker.setIcon(busIcon);
   const el=document.getElementById("busState");
   if(el){
