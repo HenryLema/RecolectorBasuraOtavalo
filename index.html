@@ -50,7 +50,7 @@
     .chip {
       display: inline-flex;
       align-items: center;
-      height: clamp(26px,5vw,34px);
+      height: clamp(26px,5vw,34px);        /* misma altura para todos */
       padding: 0 clamp(6px,1.8vw,11px);
       border: 1px solid rgba(200,200,200,.85);
       border-radius: 10px;
@@ -112,22 +112,17 @@
     /* ── Paradas ── */
     .stop-icon { font-size: clamp(22px,4vw,32px); transform: translate(-50%,-50%); }
 
-    /* ── Leaflet: sin sombras, sin bordes, sin efectos en iconos ── */
+    /* ── Leaflet: sin sombras ni efectos ── */
     .leaflet-popup-content-wrapper,
-    .leaflet-popup-tip        { box-shadow: none !important; }
-    .leaflet-marker-shadow    { display: none !important; }
-    .leaflet-marker-icon      { box-shadow: none !important; border: none !important; background: none !important; }
-    .leaflet-popup-content    { font-family: Arial,sans-serif !important; font-weight: normal !important; }
-    .leaflet-control-zoom a   { box-shadow: none !important; border: none !important; }
-    .leaflet-control-zoom     { box-shadow: none !important; border: none !important; }
-    .leaflet-control-attribution { box-shadow: none !important; border: none !important; }
+    .leaflet-popup-tip     { box-shadow: none !important; }
+    .leaflet-marker-shadow { display: none !important; }
+    .leaflet-popup-content { font-family: Arial,sans-serif !important; font-weight: normal !important; }
 
-    /* ── Zoom e attribution en esquina inferior IZQUIERDA ── */
-    .leaflet-top.leaflet-left    { display: none; }   /* oculta posición original del zoom */
-    .leaflet-bottom.leaflet-right { display: none; }  /* oculta esquina inferior derecha */
-    .leaflet-bottom.leaflet-left {
+    /* Zoom en esquina inferior derecha */
+    .leaflet-top.leaflet-left  { display: none; }   /* oculta posición original */
+    .leaflet-bottom.leaflet-right {
       bottom: clamp(12px,3vw,24px);
-      left:   clamp(8px,2vw,14px);
+      right:  clamp(8px,2vw,14px);
     }
 
     /* ── Popups ── */
@@ -264,16 +259,14 @@ const db = getDatabase(initializeApp(firebaseConfig));
 
 // ─── Mapa ─────────────────────────────────────────────────────
 const map = L.map("map", {
-  zoomControl: false,       // lo recreamos abajo a la izquierda
+  zoomControl: false,       // lo recreamos abajo a la derecha
   tap: true, tapTolerance: 15
 }).setView([0.23299010950077462, -78.26316758796887], 14);
 
-// Zoom control en esquina inferior IZQUIERDA
-L.control.zoom({ position: "bottomleft" }).addTo(map);
+// Zoom control en esquina inferior derecha
+L.control.zoom({ position: "bottomright" }).addTo(map);
 
 map.attributionControl.setPrefix("Red Otavalo Telecomunicaciones");
-map.attributionControl.options.position = "bottomleft";
-
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19, detectRetina: true
 }).addTo(map);
