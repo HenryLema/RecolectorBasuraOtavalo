@@ -7,7 +7,7 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-F
+
   <style>
     *, *::before, *::after {
       box-sizing: border-box;
@@ -71,6 +71,12 @@ F
     }
     button.chip:active { background: rgba(210,210,210,.95); transform: scale(.97); }
 
+    /* Botón Dibujar activo */
+    button.chip.drawing-active {
+      background: rgba(255, 220, 80, 0.92);
+      border-color: #e0a800;
+    }
+
     .title-chip {
       height: auto;
       min-height: clamp(26px,5vw,34px);
@@ -92,7 +98,6 @@ F
     .busstate-pill.moving  { background: #008000; }
     .busstate-pill.stopped { background: #cc0000; }
 
-    /* ── Marcador bus ── */
     .bus-wrap {
       width: clamp(26px,5vw,34px);
       height: clamp(26px,5vw,34px);
@@ -107,7 +112,6 @@ F
     .bus-wrap.stopped { background: #cc0000; }
     .bus-emoji { font-size: clamp(14px,3vw,20px); line-height: 1; }
 
-    /* ── Paradas ── */
     .stop-icon {
       font-size: clamp(22px,4vw,32px);
       transform: translate(-50%,-50%);
@@ -115,7 +119,25 @@ F
       line-height: 1;
     }
 
-    /* ── Círculo palpitante de solicitud ── */
+    /* Cursor en modo dibujo */
+    #map.draw-mode { cursor: crosshair !important; }
+
+    /* Hint flotante en modo dibujo */
+    #drawHint {
+      position: fixed;
+      bottom: clamp(60px,10vw,80px);
+      left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.62);
+      color: #fff;
+      font-size: clamp(11px,2vw,13px);
+      padding: 5px 14px;
+      border-radius: 10px;
+      z-index: 1500;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+    }
+
     @keyframes pulse-ring {
       0%   { transform: translate(-50%,-50%) scale(0.7); opacity: 1; }
       70%  { transform: translate(-50%,-50%) scale(1.55); opacity: 0.25; }
@@ -141,7 +163,6 @@ F
       animation: pulse-core 1.4s ease-in-out infinite;
       cursor: pointer;
     }
-    /* temporizador flotante sobre el marcador */
     .solicitud-timer {
       position: absolute;
       top: -18px; left: 50%; transform: translateX(-50%);
@@ -256,10 +277,12 @@ F
       <button id="btnToggleTrail" class="chip">🟢 Ruta: Si</button>
       <button id="btnInfo"        class="chip">ℹ️ Info</button>
       <button id="btnSolicitar"   class="chip">📍 Solicitar</button>
+      <button id="btnDibujar"     class="chip">✏️ Dibujar</button>
     </div>
   </div>
 
   <div id="map"></div>
+  <div id="drawHint">Toca el mapa para colocar tu solicitud</div>
 
   <div id="infoOverlay" aria-hidden="true">
     <div id="infoModal" role="dialog" aria-modal="true">
@@ -311,14 +334,21 @@ function playTone(opts) {
   } catch(e) {}
 }
 
-function soundReload()    { playTone({ freqs: [880, 660, 440], dur: 0.10, type: "square",   vol: 0.12 }); }
-function soundTrailOn()   { playTone({ freqs: [440, 550, 660], dur: 0.10, type: "sine",     vol: 0.16 }); }
-function soundTrailOff()  { playTone({ freqs: [330, 220],      dur: 0.12, type: "triangle", vol: 0.14 }); }
-function soundInfoOpen()  { playTone({ freqs: [523, 659, 784], dur: 0.13, type: "sine",     vol: 0.15 }); }
-function soundInfoClose() { playTone({ freqs: [392, 330],      dur: 0.09, type: "sine",     vol: 0.13 }); }
-function soundBusPopup()  { playTone({ freqs: [700, 700],      dur: 0.07, type: "square",   vol: 0.10 }); }
-function soundStopPopup() { playTone({ freqs: [1046, 880],     dur: 0.08, type: "triangle", vol: 0.12 }); }
-function soundSolicitar() { playTone({ freqs: [523, 784, 1046],dur: 0.11, type: "sine",     vol: 0.17 }); }
+// Todos los sonidos de botones/eventos — únicos, no se repiten entre sí
+function soundReload()      { playTone({ freqs: [880, 660, 440],  dur: 0.10, type: "square",   vol: 0.12 }); }
+function soundTrailOn()     { playTone({ freqs: [440, 550, 660],  dur: 0.10, type: "sine",     vol: 0.16 }); }
+function soundTrailOff()    { playTone({ freqs: [330, 220],       dur: 0.12, type: "triangle", vol: 0.14 }); }
+function soundInfoOpen()    { playTone({ freqs: [523, 659, 784],  dur: 0.13, type: "sine",     vol: 0.15 }); }
+function soundInfoClose()   { playTone({ freqs: [392, 330],       dur: 0.09, type: "sine",     vol: 0.13 }); }
+function soundBusPopup()    { playTone({ freqs: [700, 700],       dur: 0.07, type: "square",   vol: 0.10 }); }
+function soundStopPopup()   { playTone({ freqs: [1046, 880],      dur: 0.08, type: "triangle", vol: 0.12 }); }
+function soundSolicitar()   { playTone({ freqs: [523, 784, 1046], dur: 0.11, type: "sine",     vol: 0.17 }); }
+// Dibujar ON — acorde ascendente pentatónico agudo, único
+function soundDibujarOn()   { playTone({ freqs: [659, 784, 988],  dur: 0.09, type: "sine",     vol: 0.15 }); }
+// Dibujar OFF (cancelar) — dos notas descendentes con sawtooth, único
+function soundDibujarOff()  { playTone({ freqs: [500, 350],       dur: 0.11, type: "sawtooth", vol: 0.11 }); }
+// Punto colocado — clic metálico de confirmación, único
+function soundDibujarPlace(){ playTone({ freqs: [1200, 900, 600], dur: 0.07, type: "triangle", vol: 0.14 }); }
 
 function soundBusMoving() {
   try {
@@ -350,6 +380,74 @@ function soundBusStopped() {
     osc.start(ctx.currentTime);
     osc.stop(ctx.currentTime + 0.25);
   } catch(e) {}
+}
+
+// ─── Sonido único palpitante por solicitud ────────────────────
+const SOLICITUD_FREQ_BASE = [
+  { freq: 320,  type: "sine"     },
+  { freq: 440,  type: "triangle" },
+  { freq: 260,  type: "sine"     },
+  { freq: 550,  type: "triangle" },
+  { freq: 370,  type: "sine"     },
+  { freq: 490,  type: "triangle" },
+  { freq: 220,  type: "sine"     },
+  { freq: 600,  type: "triangle" },
+  { freq: 300,  type: "sine"     },
+  { freq: 420,  type: "triangle" },
+  { freq: 480,  type: "sine"     },
+  { freq: 340,  type: "triangle" },
+  { freq: 530,  type: "sine"     },
+  { freq: 280,  type: "triangle" },
+  { freq: 460,  type: "sine"     },
+  { freq: 390,  type: "triangle" },
+  { freq: 510,  type: "sine"     },
+  { freq: 240,  type: "triangle" },
+  { freq: 570,  type: "sine"     },
+  { freq: 350,  type: "triangle" }
+];
+let solicitudSoundIdx = 0;
+
+function crearSonidoSolicitud(freqProfile) {
+  try {
+    const ctx  = getACtx();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = freqProfile.type;
+    osc.frequency.setValueAtTime(freqProfile.freq, ctx.currentTime);
+    gain.gain.setValueAtTime(0.001, ctx.currentTime);
+    osc.start(ctx.currentTime);
+
+    const PERIOD = 1.4;
+    let running = true;
+    let nextBeat = ctx.currentTime;
+
+    function schedulePulses() {
+      if(!running) return;
+      while(nextBeat < ctx.currentTime + 3.0) {
+        const t = nextBeat;
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.linearRampToValueAtTime(0.07,  t + 0.25);
+        gain.gain.linearRampToValueAtTime(0.001, t + PERIOD * 0.7);
+        nextBeat += PERIOD;
+      }
+      if(running) setTimeout(schedulePulses, 1800);
+    }
+    schedulePulses();
+
+    return function stop() {
+      running = false;
+      try {
+        gain.gain.cancelScheduledValues(ctx.currentTime);
+        gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+        osc.stop(ctx.currentTime + 0.18);
+      } catch(e) {}
+    };
+  } catch(e) {
+    return () => {};
+  }
 }
 
 // ─── Firebase ─────────────────────────────────────────────────
@@ -482,7 +580,7 @@ function pauseFollowFor(ms=FOLLOW_RESUME_MS) {
 }
 map.on("zoomstart", () => pauseFollowFor());
 map.on("zoom",      () => pauseFollowFor());
-map.on("dragstart", () => pauseFollowFor());
+map.on("dragstart", () => { if(!drawMode) pauseFollowFor(); });
 map.on("movestart", () => pauseFollowFor());
 
 // ─── Ruta verde ───────────────────────────────────────────────
@@ -615,35 +713,35 @@ function updateGreenTrailForced(rawLat,rawLon) {
 
 // ─── Paradas ──────────────────────────────────────────────────
 const stops = [
-  {id:"p1",  name:"Contenedor 1",  lat:0.2308,   lon:-78.25777},
-  {id:"p2",  name:"Contenedor 2",  lat:0.22938,  lon:-78.25877},
-  {id:"p3",  name:"Contenedor 3",  lat:0.23075,  lon:-78.26084},
-  {id:"p4",  name:"Contenedor 4",  lat:0.23180,  lon:-78.26224},
-  {id:"p5",  name:"Contenedor 5",  lat:0.22984,  lon:-78.26385},
-  {id:"p6",  name:"Contenedor 6",  lat:0.22785,  lon:-78.26531},
-  {id:"p7",  name:"Contenedor 7",  lat:0.22665,  lon:-78.26677},
-  {id:"p8",  name:"Contenedor 8",  lat:0.22999,  lon:-78.26621},
-  {id:"p9",  name:"Contenedor 9",  lat:0.23139,  lon:-78.26623},
-  {id:"p10", name:"Contenedor 10", lat:0.23271,  lon:-78.26802},
-  {id:"p11", name:"Contenedor 11", lat:0.23999,  lon:-78.28425},
-  {id:"p12", name:"Contenedor 12", lat:0.23828,  lon:-78.2876},
-  {id:"p13", name:"Contenedor 13", lat:0.23716,  lon:-78.28993},
-  {id:"p14", name:"Contenedor 14", lat:0.23643,  lon:-78.29141},
-  {id:"p15", name:"Contenedor 15", lat:0.23563,  lon:-78.29283},
-  {id:"p16", name:"Contenedor 16", lat:0.23510,  lon:-78.29124},
-  {id:"p17", name:"Contenedor 17", lat:0.23576,  lon:-78.29013},
-  {id:"p18", name:"Contenedor 18", lat:0.23641,  lon:-78.28886},
-  {id:"p19", name:"Contenedor 19", lat:0.23688,  lon:-78.28772},
-  {id:"p20", name:"Contenedor 20", lat:0.23796,  lon:-78.28809},
-  {id:"p21", name:"Contenedor 21", lat:0.23866,  lon:-78.28675},
-  {id:"p22", name:"Contenedor 22", lat:0.23993,  lon:-78.28424},
-  {id:"p23", name:"Contenedor 23", lat:0.2339,   lon:-78.26907},
-  {id:"p24", name:"Contenedor 24", lat:0.23162,  lon:-78.26659},
-  {id:"p25", name:"Contenedor 25", lat:0.23054,  lon:-78.2644},
-  {id:"p26", name:"Contenedor 26", lat:0.23234,  lon:-78.26315},
-  {id:"p27", name:"Contenedor 27", lat:0.23144,  lon:-78.26194},
-  {id:"p28", name:"Contenedor 28", lat:0.2294,   lon:-78.25925},
-  {id:"p29", name:"Contenedor 29", lat:0.23084,  lon:-78.25798}
+  {id:"p1",  name:"Parada 1",  lat:0.2308,   lon:-78.25777},
+  {id:"p2",  name:"Parada 2",  lat:0.22938,  lon:-78.25877},
+  {id:"p3",  name:"Parada 3",  lat:0.23075,  lon:-78.26084},
+  {id:"p4",  name:"Parada 4",  lat:0.23180,  lon:-78.26224},
+  {id:"p5",  name:"Parada 5",  lat:0.22984,  lon:-78.26385},
+  {id:"p6",  name:"Parada 6",  lat:0.22785,  lon:-78.26531},
+  {id:"p7",  name:"Parada 7",  lat:0.22665,  lon:-78.26677},
+  {id:"p8",  name:"Parada 8",  lat:0.22999,  lon:-78.26621},
+  {id:"p9",  name:"Parada 9",  lat:0.23139,  lon:-78.26623},
+  {id:"p10", name:"Parada 10", lat:0.23271,  lon:-78.26802},
+  {id:"p11", name:"Parada 11", lat:0.23999,  lon:-78.28425},
+  {id:"p12", name:"Parada 12", lat:0.23828,  lon:-78.2876},
+  {id:"p13", name:"Parada 13", lat:0.23716,  lon:-78.28993},
+  {id:"p14", name:"Parada 14", lat:0.23643,  lon:-78.29141},
+  {id:"p15", name:"Parada 15", lat:0.23563,  lon:-78.29283},
+  {id:"p16", name:"Parada 16", lat:0.23510,  lon:-78.29124},
+  {id:"p17", name:"Parada 17", lat:0.23576,  lon:-78.29013},
+  {id:"p18", name:"Parada 18", lat:0.23641,  lon:-78.28886},
+  {id:"p19", name:"Parada 19", lat:0.23688,  lon:-78.28772},
+  {id:"p20", name:"Parada 20", lat:0.23796,  lon:-78.28809},
+  {id:"p21", name:"Parada 21", lat:0.23866,  lon:-78.28675},
+  {id:"p22", name:"Parada 22", lat:0.23993,  lon:-78.28424},
+  {id:"p23", name:"Parada 23", lat:0.2339,   lon:-78.26907},
+  {id:"p24", name:"Parada 24", lat:0.23162,  lon:-78.26659},
+  {id:"p25", name:"Parada 25", lat:0.23054,  lon:-78.2644},
+  {id:"p26", name:"Parada 26", lat:0.23234,  lon:-78.26315},
+  {id:"p27", name:"Parada 27", lat:0.23144,  lon:-78.26194},
+  {id:"p28", name:"Parada 28", lat:0.2294,   lon:-78.25925},
+  {id:"p29", name:"Parada 29", lat:0.23084,  lon:-78.25798}
 ];
 const stopMarkers = new Map();
 let activeStopId = null;
@@ -762,10 +860,9 @@ setInterval(() => {
 }, 3000);
 
 // ─── Solicitudes palpitantes ──────────────────────────────────
-const SOLICITUD_TTL_MS = 10 * 60 * 1000; // 10 minutos
-const solicitudes = []; // { marker, timerId, tickerId, expireAt, color, el }
+const SOLICITUD_TTL_MS = 10 * 60 * 1000;
+const solicitudes = [];
 
-// Paleta amplia de colores únicos y vivos
 const COLORES_POOL = [
   "#e74c3c","#e67e22","#f1c40f","#2ecc71","#1abc9c",
   "#3498db","#9b59b6","#e91e63","#00bcd4","#ff5722",
@@ -788,10 +885,11 @@ function formatCountdown(ms) {
 }
 
 function crearSolicitud(lat, lon) {
-  const color = nextColor();
-  const expireAt = Date.now() + SOLICITUD_TTL_MS;
+  const color       = nextColor();
+  const expireAt    = Date.now() + SOLICITUD_TTL_MS;
+  const freqProfile = SOLICITUD_FREQ_BASE[solicitudSoundIdx % SOLICITUD_FREQ_BASE.length];
+  solicitudSoundIdx++;
 
-  // HTML del marcador: anillo palpitante + punto central + timer
   const html = `
     <div style="position:relative;width:52px;height:52px;">
       <div class="solicitud-ring" style="border-color:${color};top:50%;left:50%;"></div>
@@ -808,7 +906,6 @@ function crearSolicitud(lat, lon) {
 
   const marker = L.marker([lat, lon], { icon, zIndexOffset: 500 }).addTo(map);
 
-  // Popup con botón cancelar
   const popupHtml = `<div style="font-family:Arial,sans-serif;font-size:12px;text-align:center;min-width:110px;">
     <b>📍 Solicitud</b><br>
     <span style="color:${color};">■</span> Activa<br>
@@ -819,17 +916,16 @@ function crearSolicitud(lat, lon) {
   marker.bindPopup(popupHtml);
   marker.on("popupopen", () => pauseFollowFor());
 
-  // Ticker cada segundo para actualizar el countdown
   const tickerId = setInterval(() => {
     const remaining = expireAt - Date.now();
     const el = document.getElementById(`stimer-${expireAt}`);
     if(el) el.textContent = formatCountdown(remaining);
   }, 1000);
 
-  // Timer de expiración
-  const timerId = setTimeout(() => eliminarSolicitud(expireAt), SOLICITUD_TTL_MS);
+  const stopSound = crearSonidoSolicitud(freqProfile);
+  const timerId   = setTimeout(() => eliminarSolicitud(expireAt), SOLICITUD_TTL_MS);
 
-  solicitudes.push({ marker, timerId, tickerId, expireAt, color });
+  solicitudes.push({ marker, timerId, tickerId, expireAt, color, stopSound });
 }
 
 function eliminarSolicitud(expireAt) {
@@ -838,36 +934,83 @@ function eliminarSolicitud(expireAt) {
   const s = solicitudes.splice(idx, 1)[0];
   clearTimeout(s.timerId);
   clearInterval(s.tickerId);
+  s.stopSound();
   if(map.hasLayer(s.marker)) map.removeLayer(s.marker);
 }
 
-// Expuesto globalmente para el botón Cancelar dentro del popup
 window._cancelarSolicitud = function(expireAt) {
   eliminarSolicitud(expireAt);
   map.closePopup();
 };
 
-// Botón Solicitar: usa la posición GPS del usuario si está disponible,
-// si no, usa el centro del mapa actual
+// ─── Botón Solicitar (por GPS) ────────────────────────────────
 document.getElementById("btnSolicitar").addEventListener("click", () => {
   soundSolicitar();
   pauseFollowFor();
 
   if(navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
-      pos => {
-        crearSolicitud(pos.coords.latitude, pos.coords.longitude);
-      },
-      () => {
-        // Sin permiso o error: usa centro del mapa
-        const c = map.getCenter();
-        crearSolicitud(c.lat, c.lng);
-      },
+      pos => { crearSolicitud(pos.coords.latitude, pos.coords.longitude); },
+      ()  => { const c=map.getCenter(); crearSolicitud(c.lat, c.lng); },
       { timeout: 4000, maximumAge: 10000, enableHighAccuracy: true }
     );
   } else {
     const c = map.getCenter();
     crearSolicitud(c.lat, c.lng);
+  }
+});
+
+// ─── Botón Dibujar (colocar tocando el mapa) ──────────────────
+let drawMode = false;
+const btnDibujar = document.getElementById("btnDibujar");
+const drawHint   = document.getElementById("drawHint");
+const mapEl      = document.getElementById("map");
+
+function activarModoDibujo() {
+  drawMode = true;
+  btnDibujar.textContent   = "✏️ Dibujar: ON";
+  btnDibujar.classList.add("drawing-active");
+  mapEl.classList.add("draw-mode");
+  drawHint.style.display   = "block";
+  // Desactiva arrastre para que el tap coloque el punto
+  map.dragging.disable();
+  map.scrollWheelZoom.disable();
+  soundDibujarOn();
+  pauseFollowFor();
+}
+
+function desactivarModoDibujo() {
+  drawMode = false;
+  btnDibujar.textContent   = "✏️ Dibujar";
+  btnDibujar.classList.remove("drawing-active");
+  mapEl.classList.remove("draw-mode");
+  drawHint.style.display   = "none";
+  map.dragging.enable();
+  map.scrollWheelZoom.enable();
+}
+
+btnDibujar.addEventListener("click", () => {
+  if(!drawMode) {
+    activarModoDibujo();
+  } else {
+    soundDibujarOff();
+    desactivarModoDibujo();
+  }
+});
+
+// Escucha tap/click sobre el mapa en modo dibujo
+map.on("click", function(e) {
+  if(!drawMode) return;
+  soundDibujarPlace();
+  crearSolicitud(e.latlng.lat, e.latlng.lng);
+  desactivarModoDibujo();
+});
+
+// Cancelar modo dibujo con Escape
+window.addEventListener("keydown", e => {
+  if(e.key === "Escape" && drawMode) {
+    soundDibujarOff();
+    desactivarModoDibujo();
   }
 });
 </script>
