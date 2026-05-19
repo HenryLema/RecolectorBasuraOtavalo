@@ -70,11 +70,14 @@
       transition: background .12s;
     }
     button.chip:active { background: rgba(210,210,210,.95); transform: scale(.97); }
-
-    /* Botón Dibujar activo */
     button.chip.drawing-active {
       background: rgba(255, 220, 80, 0.92);
       border-color: #e0a800;
+    }
+    button.chip:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
     }
 
     .title-chip {
@@ -104,8 +107,7 @@
       border-radius: 999px;
       display: flex; align-items: center; justify-content: center;
       transform: translate(-50%,-50%);
-      border: none;
-      outline: none;
+      border: none; outline: none;
       user-select: none;
     }
     .bus-wrap.moving  { background: #008000; }
@@ -115,14 +117,11 @@
     .stop-icon {
       font-size: clamp(22px,4vw,32px);
       transform: translate(-50%,-50%);
-      display: block;
-      line-height: 1;
+      display: block; line-height: 1;
     }
 
-    /* Cursor en modo dibujo */
     #map.draw-mode { cursor: crosshair !important; }
 
-    /* Hint flotante en modo dibujo */
     #drawHint {
       position: fixed;
       bottom: clamp(60px,10vw,80px);
@@ -138,6 +137,25 @@
       white-space: nowrap;
     }
 
+    /* Toast de aviso */
+    #toast {
+      position: fixed;
+      bottom: clamp(60px,10vw,80px);
+      left: 50%; transform: translateX(-50%);
+      background: rgba(30,30,30,0.88);
+      color: #fff;
+      font-size: clamp(11px,2vw,13px);
+      padding: 7px 18px;
+      border-radius: 12px;
+      z-index: 3000;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+      text-align: center;
+      max-width: 90vw;
+      white-space: normal;
+    }
+
     @keyframes pulse-ring {
       0%   { transform: translate(-50%,-50%) scale(0.7); opacity: 1; }
       70%  { transform: translate(-50%,-50%) scale(1.55); opacity: 0.25; }
@@ -150,8 +168,7 @@
     .solicitud-ring {
       width: 52px; height: 52px;
       border-radius: 50%;
-      border-width: 3px;
-      border-style: solid;
+      border-width: 3px; border-style: solid;
       position: absolute;
       animation: pulse-ring 1.4s ease-in-out infinite;
       pointer-events: none;
@@ -167,20 +184,16 @@
       position: absolute;
       top: -18px; left: 50%; transform: translateX(-50%);
       background: rgba(0,0,0,0.55);
-      color: #fff;
-      font-size: 10px;
+      color: #fff; font-size: 10px;
       font-family: Arial, sans-serif;
-      padding: 1px 5px;
-      border-radius: 6px;
-      white-space: nowrap;
-      pointer-events: none;
+      padding: 1px 5px; border-radius: 6px;
+      white-space: nowrap; pointer-events: none;
     }
 
     .leaflet-popup-content-wrapper,
     .leaflet-popup-tip     { box-shadow: none !important; }
     .leaflet-marker-shadow { display: none !important; }
     .leaflet-popup-content { font-family: Arial,sans-serif !important; font-weight: normal !important; }
-
     .leaflet-marker-icon      { filter: none !important; -webkit-filter: none !important; }
     .leaflet-zoom-animated    { filter: none !important; -webkit-filter: none !important; }
     .leaflet-shadow-pane      { display: none !important; }
@@ -209,22 +222,18 @@
       position: fixed; inset: 0;
       background: rgba(0,0,0,.28);
       display: none; align-items: center; justify-content: center;
-      z-index: 2000;
-      padding: clamp(8px,3vw,20px);
+      z-index: 2000; padding: clamp(8px,3vw,20px);
     }
     #infoModal {
       width: 100%;
       max-width: min(780px, calc(100vw - 16px));
       max-height: calc(100vh - 32px);
-      overflow-y: auto;
-      background: #fff;
+      overflow-y: auto; background: #fff;
       border: 1px solid rgba(210,210,210,.95);
       border-radius: clamp(10px,2vw,16px);
       padding: clamp(8px,2vw,14px) clamp(10px,2.5vw,16px);
-      font-family: Arial,sans-serif;
-      font-size: clamp(11px,1.8vw,13px);
-      color: #000;
-      -webkit-overflow-scrolling: touch;
+      font-family: Arial,sans-serif; font-size: clamp(11px,1.8vw,13px);
+      color: #000; -webkit-overflow-scrolling: touch;
     }
     #infoTopRow {
       display: flex; align-items: center;
@@ -240,26 +249,21 @@
       touch-action: manipulation;
     }
     #infoGrid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: grid; grid-template-columns: 1fr 1fr;
       gap: clamp(8px,2vw,14px);
     }
     @media (max-width:480px) { #infoGrid { grid-template-columns: 1fr; } }
-
     .infoCol {
       border: 1px solid rgba(210,210,210,.85);
       border-radius: clamp(8px,1.5vw,12px);
-      padding: clamp(7px,1.5vw,11px);
-      background: #fff;
+      padding: clamp(7px,1.5vw,11px); background: #fff;
     }
     .infoColTitle {
-      text-align: center;
-      font-size: clamp(11px,1.8vw,13px);
+      text-align: center; font-size: clamp(11px,1.8vw,13px);
       font-weight: normal; margin: 0 0 7px;
     }
     .infoLine {
-      font-size: clamp(10px,1.7vw,12px);
-      font-weight: normal; margin: 3px 0;
+      font-size: clamp(10px,1.7vw,12px); font-weight: normal; margin: 3px 0;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
 
@@ -283,6 +287,7 @@
 
   <div id="map"></div>
   <div id="drawHint">Toca el mapa para colocar tu solicitud</div>
+  <div id="toast"></div>
 
   <div id="infoOverlay" aria-hidden="true">
     <div id="infoModal" role="dialog" aria-modal="true">
@@ -304,150 +309,166 @@
   </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import { getDatabase, ref, onValue, set, push,
+         remove, serverTimestamp }                from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
 
 // ─── Audio Engine ─────────────────────────────────────────────
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let _actx = null;
-function getACtx() {
-  if (!_actx) _actx = new AudioCtx();
-  return _actx;
-}
+function getACtx() { if(!_actx) _actx = new AudioCtx(); return _actx; }
 
 function playTone(opts) {
   try {
     const ctx = getACtx();
-    const { freqs = [440], dur = 0.12, type = "sine", vol = 0.18 } = opts;
-    freqs.forEach((f, i) => {
-      const osc  = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = type;
-      osc.frequency.setValueAtTime(f, ctx.currentTime + i * 0.06);
-      gain.gain.setValueAtTime(vol, ctx.currentTime + i * 0.06);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.06 + dur);
-      osc.start(ctx.currentTime + i * 0.06);
-      osc.stop(ctx.currentTime  + i * 0.06 + dur + 0.02);
+    const { freqs=[440], dur=0.12, type="sine", vol=0.18 } = opts;
+    freqs.forEach((f,i) => {
+      const osc=ctx.createOscillator(), gain=ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type=type;
+      osc.frequency.setValueAtTime(f, ctx.currentTime+i*0.06);
+      gain.gain.setValueAtTime(vol, ctx.currentTime+i*0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+i*0.06+dur);
+      osc.start(ctx.currentTime+i*0.06);
+      osc.stop(ctx.currentTime+i*0.06+dur+0.02);
     });
   } catch(e) {}
 }
 
-// Todos los sonidos de botones/eventos — únicos, no se repiten entre sí
-function soundReload()      { playTone({ freqs: [880, 660, 440],  dur: 0.10, type: "square",   vol: 0.12 }); }
-function soundTrailOn()     { playTone({ freqs: [440, 550, 660],  dur: 0.10, type: "sine",     vol: 0.16 }); }
-function soundTrailOff()    { playTone({ freqs: [330, 220],       dur: 0.12, type: "triangle", vol: 0.14 }); }
-function soundInfoOpen()    { playTone({ freqs: [523, 659, 784],  dur: 0.13, type: "sine",     vol: 0.15 }); }
-function soundInfoClose()   { playTone({ freqs: [392, 330],       dur: 0.09, type: "sine",     vol: 0.13 }); }
-function soundBusPopup()    { playTone({ freqs: [700, 700],       dur: 0.07, type: "square",   vol: 0.10 }); }
-function soundStopPopup()   { playTone({ freqs: [1046, 880],      dur: 0.08, type: "triangle", vol: 0.12 }); }
-function soundSolicitar()   { playTone({ freqs: [523, 784, 1046], dur: 0.11, type: "sine",     vol: 0.17 }); }
-// Dibujar ON — acorde ascendente pentatónico agudo, único
-function soundDibujarOn()   { playTone({ freqs: [659, 784, 988],  dur: 0.09, type: "sine",     vol: 0.15 }); }
-// Dibujar OFF (cancelar) — dos notas descendentes con sawtooth, único
-function soundDibujarOff()  { playTone({ freqs: [500, 350],       dur: 0.11, type: "sawtooth", vol: 0.11 }); }
-// Punto colocado — clic metálico de confirmación, único
-function soundDibujarPlace(){ playTone({ freqs: [1200, 900, 600], dur: 0.07, type: "triangle", vol: 0.14 }); }
+function soundReload()       { playTone({ freqs:[880,660,440],  dur:0.10, type:"square",   vol:0.12 }); }
+function soundTrailOn()      { playTone({ freqs:[440,550,660],  dur:0.10, type:"sine",     vol:0.16 }); }
+function soundTrailOff()     { playTone({ freqs:[330,220],      dur:0.12, type:"triangle", vol:0.14 }); }
+function soundInfoOpen()     { playTone({ freqs:[523,659,784],  dur:0.13, type:"sine",     vol:0.15 }); }
+function soundInfoClose()    { playTone({ freqs:[392,330],      dur:0.09, type:"sine",     vol:0.13 }); }
+function soundBusPopup()     { playTone({ freqs:[700,700],      dur:0.07, type:"square",   vol:0.10 }); }
+function soundStopPopup()    { playTone({ freqs:[1046,880],     dur:0.08, type:"triangle", vol:0.12 }); }
+function soundSolicitar()    { playTone({ freqs:[523,784,1046], dur:0.11, type:"sine",     vol:0.17 }); }
+function soundDibujarOn()    { playTone({ freqs:[659,784,988],  dur:0.09, type:"sine",     vol:0.15 }); }
+function soundDibujarOff()   { playTone({ freqs:[500,350],      dur:0.11, type:"sawtooth", vol:0.11 }); }
+function soundDibujarPlace() { playTone({ freqs:[1200,900,600], dur:0.07, type:"triangle", vol:0.14 }); }
+function soundBlocked()      { playTone({ freqs:[220,180],      dur:0.18, type:"sawtooth", vol:0.13 }); } // único: aviso de bloqueo
 
 function soundBusMoving() {
   try {
-    const ctx = getACtx();
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(200, ctx.currentTime);
-    osc.frequency.linearRampToValueAtTime(500, ctx.currentTime + 0.18);
-    gain.gain.setValueAtTime(0.10, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.25);
+    const ctx=getACtx(), osc=ctx.createOscillator(), gain=ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination); osc.type="sawtooth";
+    osc.frequency.setValueAtTime(200,ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(500,ctx.currentTime+0.18);
+    gain.gain.setValueAtTime(0.10,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.22);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime+0.25);
   } catch(e) {}
 }
-
 function soundBusStopped() {
   try {
-    const ctx = getACtx();
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(400, ctx.currentTime);
-    osc.frequency.linearRampToValueAtTime(150, ctx.currentTime + 0.20);
-    gain.gain.setValueAtTime(0.10, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.22);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.25);
+    const ctx=getACtx(), osc=ctx.createOscillator(), gain=ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination); osc.type="sine";
+    osc.frequency.setValueAtTime(400,ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(150,ctx.currentTime+0.20);
+    gain.gain.setValueAtTime(0.10,ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.22);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime+0.25);
   } catch(e) {}
 }
 
-// ─── Sonido único palpitante por solicitud ────────────────────
+// ─── Sonido palpitante único por solicitud ────────────────────
 const SOLICITUD_FREQ_BASE = [
-  { freq: 320,  type: "sine"     },
-  { freq: 440,  type: "triangle" },
-  { freq: 260,  type: "sine"     },
-  { freq: 550,  type: "triangle" },
-  { freq: 370,  type: "sine"     },
-  { freq: 490,  type: "triangle" },
-  { freq: 220,  type: "sine"     },
-  { freq: 600,  type: "triangle" },
-  { freq: 300,  type: "sine"     },
-  { freq: 420,  type: "triangle" },
-  { freq: 480,  type: "sine"     },
-  { freq: 340,  type: "triangle" },
-  { freq: 530,  type: "sine"     },
-  { freq: 280,  type: "triangle" },
-  { freq: 460,  type: "sine"     },
-  { freq: 390,  type: "triangle" },
-  { freq: 510,  type: "sine"     },
-  { freq: 240,  type: "triangle" },
-  { freq: 570,  type: "sine"     },
-  { freq: 350,  type: "triangle" }
+  {freq:320,type:"sine"},{freq:440,type:"triangle"},{freq:260,type:"sine"},
+  {freq:550,type:"triangle"},{freq:370,type:"sine"},{freq:490,type:"triangle"},
+  {freq:220,type:"sine"},{freq:600,type:"triangle"},{freq:300,type:"sine"},
+  {freq:420,type:"triangle"},{freq:480,type:"sine"},{freq:340,type:"triangle"},
+  {freq:530,type:"sine"},{freq:280,type:"triangle"},{freq:460,type:"sine"},
+  {freq:390,type:"triangle"},{freq:510,type:"sine"},{freq:240,type:"triangle"},
+  {freq:570,type:"sine"},{freq:350,type:"triangle"}
 ];
 let solicitudSoundIdx = 0;
 
 function crearSonidoSolicitud(freqProfile) {
   try {
-    const ctx  = getACtx();
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = freqProfile.type;
+    const ctx=getACtx(), osc=ctx.createOscillator(), gain=ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type=freqProfile.type;
     osc.frequency.setValueAtTime(freqProfile.freq, ctx.currentTime);
     gain.gain.setValueAtTime(0.001, ctx.currentTime);
     osc.start(ctx.currentTime);
-
-    const PERIOD = 1.4;
-    let running = true;
-    let nextBeat = ctx.currentTime;
-
+    const PERIOD=1.4; let running=true, nextBeat=ctx.currentTime;
     function schedulePulses() {
       if(!running) return;
-      while(nextBeat < ctx.currentTime + 3.0) {
-        const t = nextBeat;
-        gain.gain.setValueAtTime(0.001, t);
-        gain.gain.linearRampToValueAtTime(0.07,  t + 0.25);
-        gain.gain.linearRampToValueAtTime(0.001, t + PERIOD * 0.7);
-        nextBeat += PERIOD;
+      while(nextBeat < ctx.currentTime+3.0) {
+        const t=nextBeat;
+        gain.gain.setValueAtTime(0.001,t);
+        gain.gain.linearRampToValueAtTime(0.07,t+0.25);
+        gain.gain.linearRampToValueAtTime(0.001,t+PERIOD*0.7);
+        nextBeat+=PERIOD;
       }
-      if(running) setTimeout(schedulePulses, 1800);
+      if(running) setTimeout(schedulePulses,1800);
     }
     schedulePulses();
-
     return function stop() {
-      running = false;
+      running=false;
       try {
         gain.gain.cancelScheduledValues(ctx.currentTime);
-        gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
-        osc.stop(ctx.currentTime + 0.18);
+        gain.gain.setValueAtTime(gain.gain.value,ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.15);
+        osc.stop(ctx.currentTime+0.18);
       } catch(e) {}
     };
-  } catch(e) {
-    return () => {};
+  } catch(e) { return ()=>{}; }
+}
+
+// ─── Toast ────────────────────────────────────────────────────
+let _toastTimer = null;
+function showToast(msg, durationMs=4000) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.style.display = "block";
+  if(_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.style.display="none"; }, durationMs);
+}
+
+// ─── Identificador de usuario (persistente por dispositivo) ───
+function getUserId() {
+  let uid = localStorage.getItem("rbo_uid");
+  if(!uid) {
+    uid = "u_" + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+    localStorage.setItem("rbo_uid", uid);
   }
+  return uid;
+}
+const MY_UID = getUserId();
+const LIMIT_MS = 12 * 60 * 60 * 1000; // 12 horas
+
+// Lee y escribe la última solicitud del usuario en Firebase
+// Ruta: UserLimits/<uid>/lastAt (timestamp ms)
+function getMyLastAt(db) {
+  return new Promise(resolve => {
+    onValue(ref(db, `UserLimits/${MY_UID}/lastAt`), snap => {
+      resolve(snap.val() || 0);
+    }, { onlyOnce: true });
+  });
+}
+async function canUserSolicitar(db) {
+  const lastAt = await getMyLastAt(db);
+  return (Date.now() - lastAt) >= LIMIT_MS;
+}
+async function registrarSolicitudUsuario(db) {
+  await set(ref(db, `UserLimits/${MY_UID}/lastAt`), Date.now());
+}
+async function tiempoRestante(db) {
+  const lastAt = await getMyLastAt(db);
+  const diff = LIMIT_MS - (Date.now() - lastAt);
+  return diff > 0 ? diff : 0;
+}
+
+function formatHMS(ms) {
+  if(ms <= 0) return "0h 0m";
+  const totalSec = Math.ceil(ms/1000);
+  const h = Math.floor(totalSec/3600);
+  const m = Math.floor((totalSec%3600)/60);
+  const s = totalSec%60;
+  if(h>0) return `${h}h ${m}m`;
+  if(m>0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
 
 // ─── Firebase ─────────────────────────────────────────────────
@@ -464,39 +485,38 @@ const db = getDatabase(initializeApp(firebaseConfig));
 
 // ─── Mapa ─────────────────────────────────────────────────────
 const map = L.map("map", {
-  zoomControl: false,
-  tap: true, tapTolerance: 15
-}).setView([0.23299010950077462, -78.26316758796887], 14);
+  zoomControl:false, tap:true, tapTolerance:15
+}).setView([0.23299010950077462,-78.26316758796887],14);
 
-L.control.zoom({ position: "bottomright" }).addTo(map);
+L.control.zoom({position:"bottomright"}).addTo(map);
 map.attributionControl.setPrefix("Red Otavalo Telecomunicaciones");
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19, detectRetina: true
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+  maxZoom:19, detectRetina:true
 }).addTo(map);
 
 map.on("popupopen", e =>
-  setTimeout(() => { if(map.hasLayer(e.popup)) map.closePopup(e.popup) }, 60000)
+  setTimeout(()=>{ if(map.hasLayer(e.popup)) map.closePopup(e.popup); },60000)
 );
 
 // ─── Recargar ─────────────────────────────────────────────────
 document.getElementById("btnReload").addEventListener("click", async () => {
   soundReload();
-  try { await set(ref(db, "Control/restart_ts"), Date.now()) } catch(e) {}
-  setTimeout(() => location.reload(), 200);
+  try { await set(ref(db,"Control/restart_ts"), Date.now()); } catch(e) {}
+  setTimeout(()=>location.reload(), 200);
 });
 
 // ─── Info modal ───────────────────────────────────────────────
 const infoOverlay = document.getElementById("infoOverlay");
 const infoMovilEl = document.getElementById("infoMovil");
 const infoFijoEl  = document.getElementById("infoFijo");
-let infoOpen = false, latestFijoData = null, latestBusData = null;
+let infoOpen=false, latestFijoData=null, latestBusData=null;
 
-const safeNum    = (v,d=6) => { const n=Number(v); return isFinite(n)?n.toFixed(d):"--" };
+const safeNum    = (v,d=6) => { const n=Number(v); return isFinite(n)?n.toFixed(d):"--"; };
 const safeVal    = v => (v===undefined||v===null||v===""||
                          (typeof v==="number"&&!isFinite(v)))?"--":String(v);
 const makeLines  = a => a.map(t=>`<div class="infoLine">${t}</div>`).join("");
 const boolToSiNo = v => {
-  if(v===true ||v==="true" ||v==="TRUE" ||v==="True")  return "Si";
+  if(v===true||v==="true"||v==="TRUE"||v==="True")   return "Si";
   if(v===false||v==="false"||v==="FALSE"||v==="False") return "No";
   return "--";
 };
@@ -525,90 +545,78 @@ function renderInfo() {
     `HDOP: ${safeVal(f.hdop)}`
   ]);
 }
-function openInfo() {
-  soundInfoOpen();
-  infoOpen=true; renderInfo();
-  infoOverlay.style.display="flex";
-  infoOverlay.setAttribute("aria-hidden","false");
-}
-function closeInfo() {
-  soundInfoClose();
-  infoOpen=false;
-  infoOverlay.style.display="none";
-  infoOverlay.setAttribute("aria-hidden","true");
-}
+function openInfo()  { soundInfoOpen();  infoOpen=true;  renderInfo(); infoOverlay.style.display="flex";  infoOverlay.setAttribute("aria-hidden","false"); }
+function closeInfo() { soundInfoClose(); infoOpen=false; infoOverlay.style.display="none"; infoOverlay.setAttribute("aria-hidden","true"); }
 
 document.getElementById("btnInfo").addEventListener("click",  e=>{ e.preventDefault(); openInfo(); });
 document.getElementById("infoClose").addEventListener("click", closeInfo);
 infoOverlay.addEventListener("click", e=>{ if(e.target===infoOverlay) closeInfo(); });
-window.addEventListener("keydown",   e=>{ if(e.key==="Escape"&&infoOpen) closeInfo(); });
+window.addEventListener("keydown", e=>{ if(e.key==="Escape"&&infoOpen) closeInfo(); });
 
 // ─── Iconos bus/parada ────────────────────────────────────────
 const stopIcon = L.divIcon({
-  className: "",
-  html: '<span class="stop-icon">🗑️</span>',
-  iconSize: [36,36],
-  iconAnchor: [18,18]
+  className:"", html:'<span class="stop-icon">🗑️</span>',
+  iconSize:[36,36], iconAnchor:[18,18]
 });
 const makeBusIconHtml = m =>
   `<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚚</span></div>`;
 
-let busIsMoving = false;
-let busIcon = L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[30,30],iconAnchor:[15,15]});
-const busMarker = L.marker([0,0], {icon:busIcon}).addTo(map);
+let busIsMoving=false;
+let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[30,30],iconAnchor:[15,15]});
+const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
 
-function buildBusPopupHtml(speedKmh, isMoving) {
+function buildBusPopupHtml(speedKmh,isMoving) {
   return `<div class="popup-wrap">
     <span class="popup-title">🚛 Recolector</span>
     <span class="popup-line">Velocidad: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
     <span class="popup-line">Estado: <span class="popup-val ${isMoving?"moving":"stopped"}">${isMoving?"Movimiento":"Detenido"}</span></span>
   </div>`;
 }
-busMarker.bindPopup(buildBusPopupHtml(0, false));
-busMarker.on("popupopen", () => { soundBusPopup(); pauseFollowFor(); });
+busMarker.bindPopup(buildBusPopupHtml(0,false));
+busMarker.on("popupopen",()=>{ soundBusPopup(); pauseFollowFor(); });
 
 // ─── Auto-follow ──────────────────────────────────────────────
-const FOLLOW_RESUME_MS = 60000;
-let followEnabled = true, followTimer = null, lastLatLng = null;
+const FOLLOW_RESUME_MS=60000;
+let followEnabled=true, followTimer=null, lastLatLng=null;
 function pauseFollowFor(ms=FOLLOW_RESUME_MS) {
-  followEnabled = false;
+  followEnabled=false;
   if(followTimer) clearTimeout(followTimer);
-  followTimer = setTimeout(() => {
-    followEnabled = true;
-    if(lastLatLng) map.setView(lastLatLng, map.getZoom(), {animate:true, duration:0.6});
-  }, ms);
+  followTimer=setTimeout(()=>{
+    followEnabled=true;
+    if(lastLatLng) map.setView(lastLatLng,map.getZoom(),{animate:true,duration:0.6});
+  },ms);
 }
-map.on("zoomstart", () => pauseFollowFor());
-map.on("zoom",      () => pauseFollowFor());
-map.on("dragstart", () => { if(!drawMode) pauseFollowFor(); });
-map.on("movestart", () => pauseFollowFor());
+map.on("zoomstart",()=>pauseFollowFor());
+map.on("zoom",     ()=>pauseFollowFor());
+map.on("dragstart",()=>{ if(!drawMode) pauseFollowFor(); });
+map.on("movestart",()=>pauseFollowFor());
 
 // ─── Ruta verde ───────────────────────────────────────────────
-const trailLatLngs = [], MAX_POINTS = 5000;
-const trailLine = L.polyline(trailLatLngs, {color:"green",weight:5,opacity:0.9}).addTo(map);
-const trailHead = L.polyline([],           {color:"green",weight:5,opacity:0.9}).addTo(map);
-let trailVisible = true;
+const trailLatLngs=[], MAX_POINTS=5000;
+const trailLine=L.polyline(trailLatLngs,{color:"green",weight:5,opacity:0.9}).addTo(map);
+const trailHead=L.polyline([],          {color:"green",weight:5,opacity:0.9}).addTo(map);
+let trailVisible=true;
 
-document.getElementById("btnToggleTrail").addEventListener("click", e => {
-  trailVisible = !trailVisible;
-  if(trailVisible) {
+document.getElementById("btnToggleTrail").addEventListener("click",e=>{
+  trailVisible=!trailVisible;
+  if(trailVisible){
     soundTrailOn();
     trailLine.setLatLngs(trailLatLngs);
     if(!map.hasLayer(trailLine)) trailLine.addTo(map);
     if(!map.hasLayer(trailHead)) trailHead.addTo(map);
-    e.target.textContent = "🟢 Ruta: Si";
+    e.target.textContent="🟢 Recorrido: Si";
   } else {
     soundTrailOff();
     if(map.hasLayer(trailLine)) map.removeLayer(trailLine);
     if(map.hasLayer(trailHead)) map.removeLayer(trailHead);
-    e.target.textContent = "⚫ Recorrido: No";
+    e.target.textContent="⚫ Recorrido: No";
   }
 });
 
 // ─── Util ─────────────────────────────────────────────────────
 function haversineMeters(lat1,lon1,lat2,lon2) {
-  const R=6371000, toRad=x=>x*Math.PI/180;
-  const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+  const R=6371000,toRad=x=>x*Math.PI/180;
+  const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
   const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
   return 2*R*Math.asin(Math.sqrt(a));
 }
@@ -623,13 +631,13 @@ function formatETA(sec) {
   if(m<60) return `${m} min`;
   return `${Math.floor(m/60)} h ${m%60} min`;
 }
-const ema  = (p,x,a) => p==null ? x : a*x+(1-a)*p;
-const ema2 = (p,x,a) => !p ? x : [ema(p[0],x[0],a), ema(p[1],x[1],a)];
+const ema  = (p,x,a) => p==null?x:a*x+(1-a)*p;
+const ema2 = (p,x,a) => !p?x:[ema(p[0],x[0],a),ema(p[1],x[1],a)];
 
 // ─── ETA ──────────────────────────────────────────────────────
-const ROUTE_FACTOR=1.45, ETA_BIAS_SEC=45, DEFAULT_SPEED_KMH=4.5;
-const SPEED_ALPHA=0.35, MIN_USABLE_SPEED_KMH=2.0, MAX_REASONABLE_SPEED_KMH=55;
-let speedSmoothed=null, lastGoodSpeed=null;
+const ROUTE_FACTOR=1.45,ETA_BIAS_SEC=45,DEFAULT_SPEED_KMH=4.5;
+const SPEED_ALPHA=0.35,MIN_USABLE_SPEED_KMH=2.0,MAX_REASONABLE_SPEED_KMH=55;
+let speedSmoothed=null,lastGoodSpeed=null;
 
 function pickSpeedKmh(rawSpeedKmh) {
   let s=Number(rawSpeedKmh||0);
@@ -641,15 +649,15 @@ function pickSpeedKmh(rawSpeedKmh) {
   if(isFinite(lastGoodSpeed)&&lastGoodSpeed>=MIN_USABLE_SPEED_KMH) return lastGoodSpeed;
   return DEFAULT_SPEED_KMH;
 }
-function calcEtaSeconds(distStraightM, usedSpeedKmh) {
+function calcEtaSeconds(distStraightM,usedSpeedKmh) {
   return (distStraightM*ROUTE_FACTOR/Math.max(usedSpeedKmh/3.6,0.1))+ETA_BIAS_SEC;
 }
 
 // ─── Snap a calle ─────────────────────────────────────────────
-const SNAP_MIN_MOVE_M=10, SNAP_MAX_ERR_M=35, SNAP_TTL_MS=15000;
-const snapCache = new Map();
-let lastSnapRaw=null, lastSnapped=null, snapPending=false;
-const snapKey = (lat,lon) => `${lat.toFixed(5)},${lon.toFixed(5)}`;
+const SNAP_MIN_MOVE_M=10,SNAP_MAX_ERR_M=35,SNAP_TTL_MS=15000;
+const snapCache=new Map();
+let lastSnapRaw=null,lastSnapped=null,snapPending=false;
+const snapKey=(lat,lon)=>`${lat.toFixed(5)},${lon.toFixed(5)}`;
 
 async function snapToRoad(lat,lon) {
   const k=snapKey(lat,lon);
@@ -660,15 +668,14 @@ async function snapToRoad(lat,lon) {
   const loc=j?.waypoints?.[0]?.location;
   if(!loc) throw 0;
   const pt=[loc[1],loc[0]];
-  snapCache.set(k,pt);
-  return pt;
+  snapCache.set(k,pt); return pt;
 }
 function maybeRequestSnap(rawLat,rawLon) {
   if(snapPending) return;
   if(!lastSnapRaw) lastSnapRaw=[rawLat,rawLon];
   if(haversineMeters(lastSnapRaw[0],lastSnapRaw[1],rawLat,rawLon)<SNAP_MIN_MOVE_M) return;
   snapPending=true;
-  const rLat=rawLat, rLon=rawLon;
+  const rLat=rawLat,rLon=rawLon;
   lastSnapRaw=[rawLat,rawLon];
   snapToRoad(rLat,rLon).then(pt=>{
     if(haversineMeters(rLat,rLon,pt[0],pt[1])<=SNAP_MAX_ERR_M) lastSnapped={pt,t:Date.now()};
@@ -684,8 +691,8 @@ function pickRoadPoint(rawLat,rawLon) {
 }
 
 // ─── Filtro / ruta ────────────────────────────────────────────
-const SMOOTH_ALPHA_POS=0.45, MIN_ADD_DIST_M=3, MAX_JUMP_DRAW_M=200;
-let lastStableDraw=null, lastSmoothed=null;
+const SMOOTH_ALPHA_POS=0.45,MIN_ADD_DIST_M=3,MAX_JUMP_DRAW_M=200;
+let lastStableDraw=null,lastSmoothed=null;
 
 function pushTrail(latLng) {
   trailLatLngs.push(latLng);
@@ -743,10 +750,10 @@ const stops = [
   {id:"p28", name:"Contenedor 28", lat:0.2294,   lon:-78.25925},
   {id:"p29", name:"Contenedor 29", lat:0.23084,  lon:-78.25798}
 ];
-const stopMarkers = new Map();
-let activeStopId = null;
+const stopMarkers=new Map();
+let activeStopId=null;
 
-function buildStopPopupHtml(name, etaTxt="--", distTxt="--", speedTxt="--") {
+function buildStopPopupHtml(name,etaTxt="--",distTxt="--",speedTxt="--") {
   return `<div class="stop-popup-wrap">
     <span class="stop-popup-title">🗑️ ${name}</span>
     <span class="stop-popup-line">Llegada: ${etaTxt}</span>
@@ -754,62 +761,61 @@ function buildStopPopupHtml(name, etaTxt="--", distTxt="--", speedTxt="--") {
     <span class="stop-popup-line">Velocidad: ${speedTxt}</span>
   </div>`;
 }
-stops.forEach(s => {
-  const m = L.marker([s.lat,s.lon], {icon:stopIcon}).addTo(map);
+stops.forEach(s=>{
+  const m=L.marker([s.lat,s.lon],{icon:stopIcon}).addTo(map);
   m.bindPopup(buildStopPopupHtml(s.name));
-  m.on("popupopen",  () => { soundStopPopup(); activeStopId=s.id; pauseFollowFor(); });
-  m.on("popupclose", () => { if(activeStopId===s.id) activeStopId=null; });
-  stopMarkers.set(s.id, m);
+  m.on("popupopen", ()=>{ soundStopPopup(); activeStopId=s.id; pauseFollowFor(); });
+  m.on("popupclose",()=>{ if(activeStopId===s.id) activeStopId=null; });
+  stopMarkers.set(s.id,m);
 });
 
 // ─── NodoFijo ─────────────────────────────────────────────────
-const NODO_FIJO_ID = "NodoFijo";
-let nodoFijoMarker = null;
-let nodoFijoLast = {dist_m:null, eta_s:null};
+const NODO_FIJO_ID="NodoFijo";
+let nodoFijoMarker=null;
+let nodoFijoLast={dist_m:null,eta_s:null};
 
 function buildNodoFijoPopupHtml(speedKmh) {
   const distTxt=(isFinite(nodoFijoLast.dist_m)&&nodoFijoLast.dist_m>=0)?formatDist(nodoFijoLast.dist_m):"--";
   const etaTxt =(isFinite(nodoFijoLast.eta_s) &&nodoFijoLast.eta_s >0) ?formatETA(nodoFijoLast.eta_s) :"--";
-  return buildStopPopupHtml("NodoFijo", etaTxt, distTxt, `${Number(speedKmh||0).toFixed(1)} km/h`);
+  return buildStopPopupHtml("NodoFijo",etaTxt,distTxt,`${Number(speedKmh||0).toFixed(1)} km/h`);
 }
 function upsertNodoFijoMarker(lat,lon) {
   if(!nodoFijoMarker) {
-    nodoFijoMarker = L.marker([lat,lon], {icon:stopIcon}).addTo(map);
+    nodoFijoMarker=L.marker([lat,lon],{icon:stopIcon}).addTo(map);
     nodoFijoMarker.bindPopup(buildNodoFijoPopupHtml(0));
-    nodoFijoMarker.on("popupopen",  () => { soundStopPopup(); activeStopId=NODO_FIJO_ID; pauseFollowFor(); });
-    nodoFijoMarker.on("popupclose", () => { if(activeStopId===NODO_FIJO_ID) activeStopId=null; });
-    stopMarkers.set(NODO_FIJO_ID, nodoFijoMarker);
+    nodoFijoMarker.on("popupopen", ()=>{ soundStopPopup(); activeStopId=NODO_FIJO_ID; pauseFollowFor(); });
+    nodoFijoMarker.on("popupclose",()=>{ if(activeStopId===NODO_FIJO_ID) activeStopId=null; });
+    stopMarkers.set(NODO_FIJO_ID,nodoFijoMarker);
   } else nodoFijoMarker.setLatLng([lat,lon]);
 }
 
 // ─── Estado bus ───────────────────────────────────────────────
 function setBusMovingState(isMoving) {
   if(busIsMoving===isMoving) return;
-  busIsMoving = isMoving;
-  if(isMoving) soundBusMoving();
-  else         soundBusStopped();
-  busIcon = L.divIcon({className:"",html:makeBusIconHtml(busIsMoving),iconSize:[30,30],iconAnchor:[15,15]});
+  busIsMoving=isMoving;
+  if(isMoving) soundBusMoving(); else soundBusStopped();
+  busIcon=L.divIcon({className:"",html:makeBusIconHtml(busIsMoving),iconSize:[30,30],iconAnchor:[15,15]});
   busMarker.setIcon(busIcon);
-  const el = document.getElementById("busState");
-  if(el) {
-    el.classList.toggle("moving",  isMoving);
-    el.classList.toggle("stopped", !isMoving);
-    el.textContent = isMoving ? "Movimiento" : "Detenido";
+  const el=document.getElementById("busState");
+  if(el){
+    el.classList.toggle("moving", isMoving);
+    el.classList.toggle("stopped",!isMoving);
+    el.textContent=isMoving?"Movimiento":"Detenido";
   }
 }
 
-// ─── Firebase listeners ───────────────────────────────────────
-onValue(ref(db,"NodoFijo"), snap => {
+// ─── Firebase listeners (bus) ─────────────────────────────────
+onValue(ref(db,"NodoFijo"),snap=>{
   const d=snap.val(); if(!d) return;
   latestFijoData=d;
   if(infoOpen) renderInfo();
-  const lat=Number(d.lat||0), lon=Number(d.lon||0);
+  const lat=Number(d.lat||0),lon=Number(d.lon||0);
   if(!lat||!lon) return;
   nodoFijoLast.dist_m=(d.bus_dist_m!==undefined)?Number(d.bus_dist_m):null;
   nodoFijoLast.eta_s =(d.bus_eta_s !==undefined)?Number(d.bus_eta_s) :null;
   upsertNodoFijoMarker(lat,lon);
 });
-onValue(ref(db,"NodoMovil"), snap => {
+onValue(ref(db,"NodoMovil"),snap=>{
   const d=snap.val(); if(!d) return;
   latestBusData=d;
   if(infoOpen) renderInfo();
@@ -817,51 +823,55 @@ onValue(ref(db,"NodoMovil"), snap => {
 
 // ─── Aplica datos a UI y mapa ─────────────────────────────────
 function applyBusDataToUIAndMap(d) {
-  const lat=Number(d.lat||0), lon=Number(d.lon||0);
+  const lat=Number(d.lat||0),lon=Number(d.lon||0);
   if(!lat||!lon) return null;
-  const rawSpeedKmh  = Number(d.speed_kmh||0);
-  const usedSpeedKmh = pickSpeedKmh(rawSpeedKmh);
-  document.getElementById("hora").textContent = d.hora_ecuador ?? "--";
-  setBusMovingState(rawSpeedKmh >= 1.0);
-  const busPos = [lat,lon];
+  const rawSpeedKmh =Number(d.speed_kmh||0);
+  const usedSpeedKmh=pickSpeedKmh(rawSpeedKmh);
+  document.getElementById("hora").textContent=d.hora_ecuador??"--";
+  setBusMovingState(rawSpeedKmh>=1.0);
+  const busPos=[lat,lon];
   busMarker.setLatLng(busPos);
-  if(followEnabled) map.panTo(busPos, {animate:true, duration:0.4});
-  if(!lastLatLng) map.setView(busPos, 16);
-  lastLatLng = busPos;
-  const ph = buildBusPopupHtml(rawSpeedKmh, busIsMoving);
+  if(followEnabled) map.panTo(busPos,{animate:true,duration:0.4});
+  if(!lastLatLng) map.setView(busPos,16);
+  lastLatLng=busPos;
+  const ph=buildBusPopupHtml(rawSpeedKmh,busIsMoving);
   if(busMarker.getPopup()) busMarker.setPopupContent(ph);
   else busMarker.bindPopup(ph);
-  return {lat, lon, rawSpeedKmh, usedSpeedKmh};
+  return {lat,lon,rawSpeedKmh,usedSpeedKmh};
 }
 
-// ─── Loop 3 s ─────────────────────────────────────────────────
-setInterval(() => {
+setInterval(()=>{
   if(!latestBusData) return;
-  const info = applyBusDataToUIAndMap(latestBusData);
+  const info=applyBusDataToUIAndMap(latestBusData);
   if(!info) return;
-  updateGreenTrailForced(info.lat, info.lon);
-  if(activeStopId) {
-    if(activeStopId===NODO_FIJO_ID && nodoFijoMarker) {
+  updateGreenTrailForced(info.lat,info.lon);
+  if(activeStopId){
+    if(activeStopId===NODO_FIJO_ID&&nodoFijoMarker){
       nodoFijoMarker.setPopupContent(buildNodoFijoPopupHtml(info.usedSpeedKmh));
     } else {
-      const s = stops.find(x=>x.id===activeStopId);
-      const m = stopMarkers.get(activeStopId);
-      if(s&&m) {
-        const dist2 = haversineMeters(info.lat,info.lon,s.lat,s.lon);
-        const eta2  = formatETA(calcEtaSeconds(dist2, info.usedSpeedKmh));
+      const s=stops.find(x=>x.id===activeStopId);
+      const m=stopMarkers.get(activeStopId);
+      if(s&&m){
+        const dist2=haversineMeters(info.lat,info.lon,s.lat,s.lon);
+        const eta2 =formatETA(calcEtaSeconds(dist2,info.usedSpeedKmh));
         m.setPopupContent(buildStopPopupHtml(
-          s.name, eta2, formatDist(dist2), `${info.usedSpeedKmh.toFixed(1)} km/h`
+          s.name,eta2,formatDist(dist2),`${info.usedSpeedKmh.toFixed(1)} km/h`
         ));
       }
     }
   }
   if(busMarker.isPopupOpen())
-    busMarker.setPopupContent(buildBusPopupHtml(info.rawSpeedKmh, busIsMoving));
-}, 3000);
+    busMarker.setPopupContent(buildBusPopupHtml(info.rawSpeedKmh,busIsMoving));
+},3000);
 
-// ─── Solicitudes palpitantes ──────────────────────────────────
-const SOLICITUD_TTL_MS = 10 * 60 * 1000;
-const solicitudes = [];
+// ═══════════════════════════════════════════════════════════════
+// ─── Solicitudes compartidas en tiempo real (Firebase) ────────
+// ═══════════════════════════════════════════════════════════════
+const SOLICITUD_TTL_MS = 10 * 60 * 1000; // 10 minutos
+const solicitudesRef   = ref(db, "Solicitudes");
+
+// Mapa local de markers activos: fbKey → { marker, tickerId, stopSound }
+const marcadoresActivos = new Map();
 
 const COLORES_POOL = [
   "#e74c3c","#e67e22","#f1c40f","#2ecc71","#1abc9c",
@@ -869,128 +879,221 @@ const COLORES_POOL = [
   "#8bc34a","#ff9800","#673ab7","#009688","#f44336",
   "#cddc39","#03a9f4","#ff4081","#76ff03","#40c4ff"
 ];
-let colorIdx = Math.floor(Math.random() * COLORES_POOL.length);
-function nextColor() {
-  const c = COLORES_POOL[colorIdx % COLORES_POOL.length];
-  colorIdx++;
-  return c;
+// Color determinístico por fbKey (mismo color para todos los usuarios)
+function colorForKey(key) {
+  let hash=0;
+  for(let i=0;i<key.length;i++) hash=(hash*31+key.charCodeAt(i))>>>0;
+  return COLORES_POOL[hash % COLORES_POOL.length];
+}
+// Perfil de sonido determinístico por fbKey
+function freqForKey(key) {
+  let hash=0;
+  for(let i=0;i<key.length;i++) hash=(hash*17+key.charCodeAt(i))>>>0;
+  return SOLICITUD_FREQ_BASE[hash % SOLICITUD_FREQ_BASE.length];
 }
 
 function formatCountdown(ms) {
-  if(ms <= 0) return "0:00";
-  const s = Math.ceil(ms / 1000);
-  const m = Math.floor(s / 60);
-  const ss = s % 60;
+  if(ms<=0) return "0:00";
+  const s=Math.ceil(ms/1000);
+  const m=Math.floor(s/60), ss=s%60;
   return `${m}:${String(ss).padStart(2,"0")}`;
 }
 
-function crearSolicitud(lat, lon) {
-  const color       = nextColor();
-  const expireAt    = Date.now() + SOLICITUD_TTL_MS;
-  const freqProfile = SOLICITUD_FREQ_BASE[solicitudSoundIdx % SOLICITUD_FREQ_BASE.length];
-  solicitudSoundIdx++;
+function dibujarSolicitudEnMapa(fbKey, data) {
+  // Si ya existe este marcador, no volver a crearlo
+  if(marcadoresActivos.has(fbKey)) return;
+
+  const { lat, lon, expireAt, uid } = data;
+  const remaining = expireAt - Date.now();
+  if(remaining <= 0) return; // ya expiró
+
+  const color      = colorForKey(fbKey);
+  const freqP      = freqForKey(fbKey);
+  const esMio      = (uid === MY_UID);
 
   const html = `
     <div style="position:relative;width:52px;height:52px;">
       <div class="solicitud-ring" style="border-color:${color};top:50%;left:50%;"></div>
       <div class="solicitud-core" style="background:${color};top:50%;left:50%;"></div>
-      <div class="solicitud-timer" id="stimer-${expireAt}">10:00</div>
+      <div class="solicitud-timer" id="stimer-${fbKey}">
+        ${formatCountdown(remaining)}
+      </div>
     </div>`;
 
   const icon = L.divIcon({
-    className: "",
-    html,
-    iconSize:   [52, 52],
-    iconAnchor: [26, 26]
+    className:"", html,
+    iconSize:[52,52], iconAnchor:[26,26]
   });
 
-  const marker = L.marker([lat, lon], { icon, zIndexOffset: 500 }).addTo(map);
+  const marker = L.marker([lat,lon],{icon,zIndexOffset:500}).addTo(map);
+
+  // Solo el dueño puede cancelar
+  const cancelBtn = esMio
+    ? `<button onclick="window._cancelarSolicitud('${fbKey}')"
+         style="margin-top:5px;padding:2px 10px;border:1px solid #bbb;border-radius:6px;
+                background:#fff;cursor:pointer;font-size:11px;">Cancelar</button>`
+    : `<span style="font-size:10px;color:#888;">Otro usuario</span>`;
 
   const popupHtml = `<div style="font-family:Arial,sans-serif;font-size:12px;text-align:center;min-width:110px;">
     <b>📍 Solicitud</b><br>
     <span style="color:${color};">■</span> Activa<br>
-    <button onclick="window._cancelarSolicitud(${expireAt})"
-      style="margin-top:5px;padding:2px 10px;border:1px solid #bbb;border-radius:6px;
-             background:#fff;cursor:pointer;font-size:11px;">Cancelar</button>
+    ${cancelBtn}
   </div>`;
   marker.bindPopup(popupHtml);
-  marker.on("popupopen", () => pauseFollowFor());
+  marker.on("popupopen",()=>pauseFollowFor());
 
-  const tickerId = setInterval(() => {
-    const remaining = expireAt - Date.now();
-    const el = document.getElementById(`stimer-${expireAt}`);
-    if(el) el.textContent = formatCountdown(remaining);
-  }, 1000);
+  // Countdown ticker
+  const tickerId = setInterval(()=>{
+    const rem = expireAt - Date.now();
+    const el  = document.getElementById(`stimer-${fbKey}`);
+    if(el) el.textContent = formatCountdown(rem);
+    if(rem <= 0) {
+      clearInterval(tickerId);
+      // Firebase onValue se encargará de quitar el nodo cuando expire
+    }
+  },1000);
 
-  const stopSound = crearSonidoSolicitud(freqProfile);
-  const timerId   = setTimeout(() => eliminarSolicitud(expireAt), SOLICITUD_TTL_MS);
+  // Sonido palpitante
+  const stopSound = crearSonidoSolicitud(freqP);
 
-  solicitudes.push({ marker, timerId, tickerId, expireAt, color, stopSound });
+  // Auto-expiración local (por si el listener tarda)
+  const autoExpire = setTimeout(()=>{
+    quitarMarcador(fbKey);
+  }, remaining + 500);
+
+  marcadoresActivos.set(fbKey, { marker, tickerId, stopSound, autoExpire });
 }
 
-function eliminarSolicitud(expireAt) {
-  const idx = solicitudes.findIndex(s => s.expireAt === expireAt);
-  if(idx === -1) return;
-  const s = solicitudes.splice(idx, 1)[0];
-  clearTimeout(s.timerId);
-  clearInterval(s.tickerId);
-  s.stopSound();
-  if(map.hasLayer(s.marker)) map.removeLayer(s.marker);
+function quitarMarcador(fbKey) {
+  const item = marcadoresActivos.get(fbKey);
+  if(!item) return;
+  marcadoresActivos.delete(fbKey);
+  clearInterval(item.tickerId);
+  clearTimeout(item.autoExpire);
+  item.stopSound();
+  if(map.hasLayer(item.marker)) map.removeLayer(item.marker);
 }
 
-window._cancelarSolicitud = function(expireAt) {
-  eliminarSolicitud(expireAt);
-  map.closePopup();
-};
+// ─── Escucha en tiempo real todas las solicitudes ─────────────
+onValue(solicitudesRef, snap => {
+  const data = snap.val() || {};
+  const claves = new Set(Object.keys(data));
 
-// ─── Botón Solicitar (por GPS) ────────────────────────────────
-document.getElementById("btnSolicitar").addEventListener("click", () => {
-  soundSolicitar();
-  pauseFollowFor();
-
-  if(navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      pos => { crearSolicitud(pos.coords.latitude, pos.coords.longitude); },
-      ()  => { const c=map.getCenter(); crearSolicitud(c.lat, c.lng); },
-      { timeout: 4000, maximumAge: 10000, enableHighAccuracy: true }
-    );
-  } else {
-    const c = map.getCenter();
-    crearSolicitud(c.lat, c.lng);
+  // Agregar nuevas
+  for(const [k,v] of Object.entries(data)) {
+    if(!marcadoresActivos.has(k)) dibujarSolicitudEnMapa(k, v);
+  }
+  // Quitar las que ya no están en Firebase (canceladas o expiradas)
+  for(const k of marcadoresActivos.keys()) {
+    if(!claves.has(k)) quitarMarcador(k);
   }
 });
 
-// ─── Botón Dibujar (colocar tocando el mapa) ──────────────────
-let drawMode = false;
+// ─── Limpieza automática de solicitudes expiradas en Firebase ─
+// Solo el usuario que la creó la borra cuando detecta que expiró.
+// Se revisa cada 30 s para no sobrecargar.
+setInterval(async ()=>{
+  try {
+    const snap = await new Promise(res=>onValue(solicitudesRef,res,{onlyOnce:true}));
+    const data = snap.val()||{};
+    for(const [k,v] of Object.entries(data)){
+      if(v.uid === MY_UID && v.expireAt <= Date.now()){
+        await remove(ref(db,`Solicitudes/${k}`));
+      }
+    }
+  } catch(e){}
+},30000);
+
+// ─── Publicar solicitud en Firebase ──────────────────────────
+async function crearSolicitud(lat, lon) {
+  // Verificar límite 12 h
+  const ok = await canUserSolicitar(db);
+  if(!ok) {
+    const rem = await tiempoRestante(db);
+    soundBlocked();
+    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
+    return;
+  }
+
+  const expireAt = Date.now() + SOLICITUD_TTL_MS;
+  const newRef   = push(solicitudesRef);
+  const fbKey    = newRef.key;
+
+  await set(newRef, { lat, lon, expireAt, uid: MY_UID });
+  await registrarSolicitudUsuario(db);
+  showToast("✅ Solicitud enviada — visible para todos", 3000);
+}
+
+// ─── Cancelar (solo el dueño) ─────────────────────────────────
+window._cancelarSolicitud = async function(fbKey) {
+  map.closePopup();
+  await remove(ref(db,`Solicitudes/${fbKey}`));
+  // Limpiar el límite del usuario al cancelar antes de los 10 min
+  // (opcional: no se resetea, así respetamos el cupo de 12 h igual)
+};
+
+// ─── Botón Solicitar (GPS) ────────────────────────────────────
+document.getElementById("btnSolicitar").addEventListener("click", async () => {
+  // Verificar antes de activar GPS para respuesta rápida
+  const ok = await canUserSolicitar(db);
+  if(!ok) {
+    const rem = await tiempoRestante(db);
+    soundBlocked();
+    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
+    return;
+  }
+  soundSolicitar();
+  pauseFollowFor();
+
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(
+      pos => { crearSolicitud(pos.coords.latitude, pos.coords.longitude); },
+      ()  => { const c=map.getCenter(); crearSolicitud(c.lat,c.lng); },
+      {timeout:4000,maximumAge:10000,enableHighAccuracy:true}
+    );
+  } else {
+    const c=map.getCenter();
+    crearSolicitud(c.lat,c.lng);
+  }
+});
+
+// ─── Botón Dibujar ────────────────────────────────────────────
+let drawMode=false;
 const btnDibujar = document.getElementById("btnDibujar");
 const drawHint   = document.getElementById("drawHint");
 const mapEl      = document.getElementById("map");
 
 function activarModoDibujo() {
-  drawMode = true;
-  btnDibujar.textContent   = "✏️ Dibujar: Si";
+  drawMode=true;
+  btnDibujar.textContent="⭕ Dibujar: Si";
   btnDibujar.classList.add("drawing-active");
   mapEl.classList.add("draw-mode");
-  drawHint.style.display   = "block";
-  // Desactiva arrastre para que el tap coloque el punto
+  drawHint.style.display="block";
   map.dragging.disable();
   map.scrollWheelZoom.disable();
   soundDibujarOn();
   pauseFollowFor();
 }
-
 function desactivarModoDibujo() {
-  drawMode = false;
-  btnDibujar.textContent   = "✏️ Dibujar";
+  drawMode=false;
+  btnDibujar.textContent="⭕ Dibujar";
   btnDibujar.classList.remove("drawing-active");
   mapEl.classList.remove("draw-mode");
-  drawHint.style.display   = "none";
+  drawHint.style.display="none";
   map.dragging.enable();
   map.scrollWheelZoom.enable();
 }
 
-btnDibujar.addEventListener("click", () => {
-  if(!drawMode) {
+btnDibujar.addEventListener("click", async () => {
+  if(!drawMode){
+    // Verificar límite antes de activar el modo
+    const ok = await canUserSolicitar(db);
+    if(!ok){
+      const rem = await tiempoRestante(db);
+      soundBlocked();
+      showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
+      return;
+    }
     activarModoDibujo();
   } else {
     soundDibujarOff();
@@ -998,20 +1101,15 @@ btnDibujar.addEventListener("click", () => {
   }
 });
 
-// Escucha tap/click sobre el mapa en modo dibujo
-map.on("click", function(e) {
+map.on("click", async function(e){
   if(!drawMode) return;
   soundDibujarPlace();
-  crearSolicitud(e.latlng.lat, e.latlng.lng);
   desactivarModoDibujo();
+  await crearSolicitud(e.latlng.lat, e.latlng.lng);
 });
 
-// Cancelar modo dibujo con Escape
-window.addEventListener("keydown", e => {
-  if(e.key === "Escape" && drawMode) {
-    soundDibujarOff();
-    desactivarModoDibujo();
-  }
+window.addEventListener("keydown", e=>{
+  if(e.key==="Escape"&&drawMode){ soundDibujarOff(); desactivarModoDibujo(); }
 });
 </script>
 </body>
