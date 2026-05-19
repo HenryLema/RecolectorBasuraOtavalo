@@ -274,7 +274,7 @@
       <div class="chip">⏱️ Hora: <span id="hora" style="margin-left:3px">--</span></div>
       <div class="chip">Estado:&nbsp;<span id="busState" class="busstate-pill stopped">Detenido</span></div>
       <button id="btnReload"      class="chip">🔃 Recargar</button>
-      <button id="btnToggleTrail" class="chip">🟢 Ruta: Si</button>
+      <button id="btnToggleTrail" class="chip">🟢 Recorrido: Si</button>
       <button id="btnInfo"        class="chip">ℹ️ Info</button>
       <button id="btnSolicitar"   class="chip">🖐️ Solicitar</button>
       <button id="btnDibujar"     class="chip">⭕ Dibujar</button>
@@ -601,7 +601,7 @@ document.getElementById("btnToggleTrail").addEventListener("click", e => {
     soundTrailOff();
     if(map.hasLayer(trailLine)) map.removeLayer(trailLine);
     if(map.hasLayer(trailHead)) map.removeLayer(trailHead);
-    e.target.textContent = "⚫ Ruta: No";
+    e.target.textContent = "⚫ Recorrido: No";
   }
 });
 
