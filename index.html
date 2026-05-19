@@ -1,3 +1,4 @@
+cat > /mnt/user-data/outputs/recolector_basura_otavalo.html << 'HTMLEOF'
 <!doctype html>
 <html lang="es">
 <head>
@@ -137,7 +138,6 @@
       white-space: nowrap;
     }
 
-    /* Toast de aviso */
     #toast {
       position: fixed;
       bottom: clamp(60px,10vw,80px);
@@ -150,7 +150,6 @@
       z-index: 3000;
       pointer-events: none;
       display: none;
-      white-space: nowrap;
       text-align: center;
       max-width: 90vw;
       white-space: normal;
@@ -206,7 +205,7 @@
     }
 
     .popup-wrap      { width: clamp(130px,35vw,170px); font-family: Arial,sans-serif; }
-    .stop-popup-wrap { width: clamp(140px,38vw,5px); font-family: Arial,sans-serif; }
+    .stop-popup-wrap { width: clamp(140px,38vw,180px); font-family: Arial,sans-serif; }
 
     .popup-title, .popup-line,
     .stop-popup-title, .stop-popup-line {
@@ -217,6 +216,22 @@
     .popup-val { font-weight: normal; }
     .popup-val.moving  { color: #008000; }
     .popup-val.stopped { color: #cc0000; }
+
+    /* popup solicitud — mismo ancho que stop-popup */
+    .sol-popup-wrap {
+      width: clamp(140px,38vw,180px);
+      font-family: Arial,sans-serif;
+      font-size: clamp(10px,2vw,12px);
+    }
+    .sol-popup-title {
+      display: block; text-align: center;
+      font-weight: normal; margin: 0 0 5px;
+      font-size: clamp(10px,2vw,12px);
+    }
+    .sol-popup-line {
+      display: block; color: #000; font-weight: normal;
+      font-size: clamp(10px,2vw,12px); line-height: 1.3; margin: 3px 0;
+    }
 
     #infoOverlay {
       position: fixed; inset: 0;
@@ -309,9 +324,9 @@
   </div>
 
 <script type="module">
-import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-import { getDatabase, ref, onValue, set, push,
-         remove, serverTimestamp }                from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+import { initializeApp }                      from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+import { getDatabase, ref, onValue, set,
+         push, remove }                       from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
 
 // ─── Audio Engine ─────────────────────────────────────────────
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -346,7 +361,7 @@ function soundSolicitar()    { playTone({ freqs:[523,784,1046], dur:0.11, type:"
 function soundDibujarOn()    { playTone({ freqs:[659,784,988],  dur:0.09, type:"sine",     vol:0.15 }); }
 function soundDibujarOff()   { playTone({ freqs:[500,350],      dur:0.11, type:"sawtooth", vol:0.11 }); }
 function soundDibujarPlace() { playTone({ freqs:[1200,900,600], dur:0.07, type:"triangle", vol:0.14 }); }
-function soundBlocked()      { playTone({ freqs:[220,180],      dur:0.18, type:"sawtooth", vol:0.13 }); } // único: aviso de bloqueo
+function soundBlocked()      { playTone({ freqs:[220,180],      dur:0.18, type:"sawtooth", vol:0.13 }); }
 
 function soundBusMoving() {
   try {
@@ -381,7 +396,6 @@ const SOLICITUD_FREQ_BASE = [
   {freq:390,type:"triangle"},{freq:510,type:"sine"},{freq:240,type:"triangle"},
   {freq:570,type:"sine"},{freq:350,type:"triangle"}
 ];
-let solicitudSoundIdx = 0;
 
 function crearSonidoSolicitud(freqProfile) {
   try {
@@ -426,7 +440,7 @@ function showToast(msg, durationMs=4000) {
   _toastTimer = setTimeout(() => { el.style.display="none"; }, durationMs);
 }
 
-// ─── Identificador de usuario (persistente por dispositivo) ───
+// ─── ID de usuario persistente ────────────────────────────────
 function getUserId() {
   let uid = localStorage.getItem("rbo_uid");
   if(!uid) {
@@ -435,37 +449,32 @@ function getUserId() {
   }
   return uid;
 }
-const MY_UID = getUserId();
-const LIMIT_MS = 12 * 60 * 60 * 1000; // 12 horas
+const MY_UID  = getUserId();
+const LIMIT_MS = 12 * 60 * 60 * 1000;
 
-// Lee y escribe la última solicitud del usuario en Firebase
-// Ruta: UserLimits/<uid>/lastAt (timestamp ms)
 function getMyLastAt(db) {
   return new Promise(resolve => {
-    onValue(ref(db, `UserLimits/${MY_UID}/lastAt`), snap => {
-      resolve(snap.val() || 0);
-    }, { onlyOnce: true });
+    onValue(ref(db,`UserLimits/${MY_UID}/lastAt`), snap=>{
+      resolve(snap.val()||0);
+    }, {onlyOnce:true});
   });
 }
 async function canUserSolicitar(db) {
   const lastAt = await getMyLastAt(db);
-  return (Date.now() - lastAt) >= LIMIT_MS;
+  return (Date.now()-lastAt) >= LIMIT_MS;
 }
 async function registrarSolicitudUsuario(db) {
-  await set(ref(db, `UserLimits/${MY_UID}/lastAt`), Date.now());
+  await set(ref(db,`UserLimits/${MY_UID}/lastAt`), Date.now());
 }
 async function tiempoRestante(db) {
   const lastAt = await getMyLastAt(db);
-  const diff = LIMIT_MS - (Date.now() - lastAt);
-  return diff > 0 ? diff : 0;
+  const diff = LIMIT_MS-(Date.now()-lastAt);
+  return diff>0?diff:0;
 }
-
 function formatHMS(ms) {
-  if(ms <= 0) return "0h 0m";
-  const totalSec = Math.ceil(ms/1000);
-  const h = Math.floor(totalSec/3600);
-  const m = Math.floor((totalSec%3600)/60);
-  const s = totalSec%60;
+  if(ms<=0) return "0h 0m";
+  const totalSec=Math.ceil(ms/1000);
+  const h=Math.floor(totalSec/3600), m=Math.floor((totalSec%3600)/60), s=totalSec%60;
   if(h>0) return `${h}h ${m}m`;
   if(m>0) return `${m}m ${s}s`;
   return `${s}s`;
@@ -484,45 +493,38 @@ const firebaseConfig = {
 const db = getDatabase(initializeApp(firebaseConfig));
 
 // ─── Mapa ─────────────────────────────────────────────────────
-const map = L.map("map", {
-  zoomControl:false, tap:true, tapTolerance:15
-}).setView([0.23299010950077462,-78.26316758796887],14);
-
+const map = L.map("map",{zoomControl:false,tap:true,tapTolerance:15})
+             .setView([0.23299010950077462,-78.26316758796887],14);
 L.control.zoom({position:"bottomright"}).addTo(map);
 map.attributionControl.setPrefix("Red Otavalo Telecomunicaciones");
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
-  maxZoom:19, detectRetina:true
-}).addTo(map);
-
-map.on("popupopen", e =>
-  setTimeout(()=>{ if(map.hasLayer(e.popup)) map.closePopup(e.popup); },60000)
-);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,detectRetina:true}).addTo(map);
+map.on("popupopen",e=>setTimeout(()=>{if(map.hasLayer(e.popup))map.closePopup(e.popup);},60000));
 
 // ─── Recargar ─────────────────────────────────────────────────
-document.getElementById("btnReload").addEventListener("click", async () => {
+document.getElementById("btnReload").addEventListener("click", async()=>{
   soundReload();
-  try { await set(ref(db,"Control/restart_ts"), Date.now()); } catch(e) {}
-  setTimeout(()=>location.reload(), 200);
+  try{await set(ref(db,"Control/restart_ts"),Date.now());}catch(e){}
+  setTimeout(()=>location.reload(),200);
 });
 
 // ─── Info modal ───────────────────────────────────────────────
-const infoOverlay = document.getElementById("infoOverlay");
-const infoMovilEl = document.getElementById("infoMovil");
-const infoFijoEl  = document.getElementById("infoFijo");
+const infoOverlay=document.getElementById("infoOverlay");
+const infoMovilEl=document.getElementById("infoMovil");
+const infoFijoEl =document.getElementById("infoFijo");
 let infoOpen=false, latestFijoData=null, latestBusData=null;
 
-const safeNum    = (v,d=6) => { const n=Number(v); return isFinite(n)?n.toFixed(d):"--"; };
-const safeVal    = v => (v===undefined||v===null||v===""||
-                         (typeof v==="number"&&!isFinite(v)))?"--":String(v);
-const makeLines  = a => a.map(t=>`<div class="infoLine">${t}</div>`).join("");
-const boolToSiNo = v => {
+const safeNum   =(v,d=6)=>{const n=Number(v);return isFinite(n)?n.toFixed(d):"--";};
+const safeVal   =v=>(v===undefined||v===null||v===""||
+                     (typeof v==="number"&&!isFinite(v)))?"--":String(v);
+const makeLines =a=>a.map(t=>`<div class="infoLine">${t}</div>`).join("");
+const boolToSiNo=v=>{
   if(v===true||v==="true"||v==="TRUE"||v==="True")   return "Si";
-  if(v===false||v==="false"||v==="FALSE"||v==="False") return "No";
+  if(v===false||v==="false"||v==="FALSE"||v==="False")return "No";
   return "--";
 };
 
-function renderInfo() {
-  const m=latestBusData||{}, f=latestFijoData||{};
+function renderInfo(){
+  const m=latestBusData||{},f=latestFijoData||{};
   const movilVel=(m.speed_kmh!==undefined&&isFinite(Number(m.speed_kmh)))
     ?`${Number(m.speed_kmh).toFixed(1)} km/h`:"--";
   infoMovilEl.innerHTML=makeLines([
@@ -545,27 +547,23 @@ function renderInfo() {
     `HDOP: ${safeVal(f.hdop)}`
   ]);
 }
-function openInfo()  { soundInfoOpen();  infoOpen=true;  renderInfo(); infoOverlay.style.display="flex";  infoOverlay.setAttribute("aria-hidden","false"); }
-function closeInfo() { soundInfoClose(); infoOpen=false; infoOverlay.style.display="none"; infoOverlay.setAttribute("aria-hidden","true"); }
+function openInfo() { soundInfoOpen();  infoOpen=true;  renderInfo(); infoOverlay.style.display="flex"; infoOverlay.setAttribute("aria-hidden","false"); }
+function closeInfo(){ soundInfoClose(); infoOpen=false; infoOverlay.style.display="none"; infoOverlay.setAttribute("aria-hidden","true"); }
 
-document.getElementById("btnInfo").addEventListener("click",  e=>{ e.preventDefault(); openInfo(); });
-document.getElementById("infoClose").addEventListener("click", closeInfo);
-infoOverlay.addEventListener("click", e=>{ if(e.target===infoOverlay) closeInfo(); });
-window.addEventListener("keydown", e=>{ if(e.key==="Escape"&&infoOpen) closeInfo(); });
+document.getElementById("btnInfo").addEventListener("click",e=>{e.preventDefault();openInfo();});
+document.getElementById("infoClose").addEventListener("click",closeInfo);
+infoOverlay.addEventListener("click",e=>{if(e.target===infoOverlay)closeInfo();});
+window.addEventListener("keydown",e=>{if(e.key==="Escape"&&infoOpen)closeInfo();});
 
 // ─── Iconos bus/parada ────────────────────────────────────────
-const stopIcon = L.divIcon({
-  className:"", html:'<span class="stop-icon">🗑️</span>',
-  iconSize:[36,36], iconAnchor:[18,18]
-});
-const makeBusIconHtml = m =>
-  `<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚚</span></div>`;
+const stopIcon=L.divIcon({className:"",html:'<span class="stop-icon">🗑️</span>',iconSize:[36,36],iconAnchor:[18,18]});
+const makeBusIconHtml=m=>`<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚚</span></div>`;
 
 let busIsMoving=false;
 let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[30,30],iconAnchor:[15,15]});
 const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
 
-function buildBusPopupHtml(speedKmh,isMoving) {
+function buildBusPopupHtml(speedKmh,isMoving){
   return `<div class="popup-wrap">
     <span class="popup-title">🚛 Recolector</span>
     <span class="popup-line">Velocidad: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
@@ -573,26 +571,26 @@ function buildBusPopupHtml(speedKmh,isMoving) {
   </div>`;
 }
 busMarker.bindPopup(buildBusPopupHtml(0,false));
-busMarker.on("popupopen",()=>{ soundBusPopup(); pauseFollowFor(); });
+busMarker.on("popupopen",()=>{soundBusPopup();pauseFollowFor();});
 
 // ─── Auto-follow ──────────────────────────────────────────────
 const FOLLOW_RESUME_MS=60000;
-let followEnabled=true, followTimer=null, lastLatLng=null;
-function pauseFollowFor(ms=FOLLOW_RESUME_MS) {
+let followEnabled=true,followTimer=null,lastLatLng=null;
+function pauseFollowFor(ms=FOLLOW_RESUME_MS){
   followEnabled=false;
-  if(followTimer) clearTimeout(followTimer);
+  if(followTimer)clearTimeout(followTimer);
   followTimer=setTimeout(()=>{
     followEnabled=true;
-    if(lastLatLng) map.setView(lastLatLng,map.getZoom(),{animate:true,duration:0.6});
+    if(lastLatLng)map.setView(lastLatLng,map.getZoom(),{animate:true,duration:0.6});
   },ms);
 }
 map.on("zoomstart",()=>pauseFollowFor());
 map.on("zoom",     ()=>pauseFollowFor());
-map.on("dragstart",()=>{ if(!drawMode) pauseFollowFor(); });
+map.on("dragstart",()=>{if(!drawMode)pauseFollowFor();});
 map.on("movestart",()=>pauseFollowFor());
 
 // ─── Ruta verde ───────────────────────────────────────────────
-const trailLatLngs=[], MAX_POINTS=5000;
+const trailLatLngs=[],MAX_POINTS=5000;
 const trailLine=L.polyline(trailLatLngs,{color:"green",weight:5,opacity:0.9}).addTo(map);
 const trailHead=L.polyline([],          {color:"green",weight:5,opacity:0.9}).addTo(map);
 let trailVisible=true;
@@ -602,55 +600,55 @@ document.getElementById("btnToggleTrail").addEventListener("click",e=>{
   if(trailVisible){
     soundTrailOn();
     trailLine.setLatLngs(trailLatLngs);
-    if(!map.hasLayer(trailLine)) trailLine.addTo(map);
-    if(!map.hasLayer(trailHead)) trailHead.addTo(map);
+    if(!map.hasLayer(trailLine))trailLine.addTo(map);
+    if(!map.hasLayer(trailHead))trailHead.addTo(map);
     e.target.textContent="🟢 Recorrido: Si";
-  } else {
+  }else{
     soundTrailOff();
-    if(map.hasLayer(trailLine)) map.removeLayer(trailLine);
-    if(map.hasLayer(trailHead)) map.removeLayer(trailHead);
+    if(map.hasLayer(trailLine))map.removeLayer(trailLine);
+    if(map.hasLayer(trailHead))map.removeLayer(trailHead);
     e.target.textContent="⚫ Recorrido: No";
   }
 });
 
 // ─── Util ─────────────────────────────────────────────────────
-function haversineMeters(lat1,lon1,lat2,lon2) {
+function haversineMeters(lat1,lon1,lat2,lon2){
   const R=6371000,toRad=x=>x*Math.PI/180;
   const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
   const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
   return 2*R*Math.asin(Math.sqrt(a));
 }
-function formatDist(m) {
-  if(!isFinite(m)||m<=0) return "--";
-  return (m<1000)?`${m.toFixed(0)} m`:`${(m/1000).toFixed(2)} km`;
+function formatDist(m){
+  if(!isFinite(m)||m<=0)return "--";
+  return(m<1000)?`${m.toFixed(0)} m`:`${(m/1000).toFixed(2)} km`;
 }
-function formatETA(sec) {
-  if(!isFinite(sec)||sec<=0) return "--";
+function formatETA(sec){
+  if(!isFinite(sec)||sec<=0)return "--";
   const m=Math.round(sec/60);
-  if(m<1)  return "< 1 min";
-  if(m<60) return `${m} min`;
+  if(m<1) return "< 1 min";
+  if(m<60)return `${m} min`;
   return `${Math.floor(m/60)} h ${m%60} min`;
 }
-const ema  = (p,x,a) => p==null?x:a*x+(1-a)*p;
-const ema2 = (p,x,a) => !p?x:[ema(p[0],x[0],a),ema(p[1],x[1],a)];
+const ema =(p,x,a)=>p==null?x:a*x+(1-a)*p;
+const ema2=(p,x,a)=>!p?x:[ema(p[0],x[0],a),ema(p[1],x[1],a)];
 
 // ─── ETA ──────────────────────────────────────────────────────
 const ROUTE_FACTOR=1.45,ETA_BIAS_SEC=45,DEFAULT_SPEED_KMH=4.5;
 const SPEED_ALPHA=0.35,MIN_USABLE_SPEED_KMH=2.0,MAX_REASONABLE_SPEED_KMH=55;
 let speedSmoothed=null,lastGoodSpeed=null;
 
-function pickSpeedKmh(rawSpeedKmh) {
+function pickSpeedKmh(rawSpeedKmh){
   let s=Number(rawSpeedKmh||0);
-  if(!isFinite(s)||s<0) s=0;
-  if(s>MAX_REASONABLE_SPEED_KMH) s=MAX_REASONABLE_SPEED_KMH;
+  if(!isFinite(s)||s<0)s=0;
+  if(s>MAX_REASONABLE_SPEED_KMH)s=MAX_REASONABLE_SPEED_KMH;
   speedSmoothed=ema(speedSmoothed,s,SPEED_ALPHA);
-  if(isFinite(speedSmoothed)&&speedSmoothed>=MIN_USABLE_SPEED_KMH) lastGoodSpeed=speedSmoothed;
-  if(isFinite(speedSmoothed)&&speedSmoothed>=MIN_USABLE_SPEED_KMH) return speedSmoothed;
-  if(isFinite(lastGoodSpeed)&&lastGoodSpeed>=MIN_USABLE_SPEED_KMH) return lastGoodSpeed;
+  if(isFinite(speedSmoothed)&&speedSmoothed>=MIN_USABLE_SPEED_KMH)lastGoodSpeed=speedSmoothed;
+  if(isFinite(speedSmoothed)&&speedSmoothed>=MIN_USABLE_SPEED_KMH)return speedSmoothed;
+  if(isFinite(lastGoodSpeed)&&lastGoodSpeed>=MIN_USABLE_SPEED_KMH)return lastGoodSpeed;
   return DEFAULT_SPEED_KMH;
 }
-function calcEtaSeconds(distStraightM,usedSpeedKmh) {
-  return (distStraightM*ROUTE_FACTOR/Math.max(usedSpeedKmh/3.6,0.1))+ETA_BIAS_SEC;
+function calcEtaSeconds(distStraightM,usedSpeedKmh){
+  return(distStraightM*ROUTE_FACTOR/Math.max(usedSpeedKmh/3.6,0.1))+ETA_BIAS_SEC;
 }
 
 // ─── Snap a calle ─────────────────────────────────────────────
@@ -659,102 +657,102 @@ const snapCache=new Map();
 let lastSnapRaw=null,lastSnapped=null,snapPending=false;
 const snapKey=(lat,lon)=>`${lat.toFixed(5)},${lon.toFixed(5)}`;
 
-async function snapToRoad(lat,lon) {
+async function snapToRoad(lat,lon){
   const k=snapKey(lat,lon);
-  if(snapCache.has(k)) return snapCache.get(k);
+  if(snapCache.has(k))return snapCache.get(k);
   const r=await fetch(`https://router.project-osrm.org/nearest/v1/driving/${lon},${lat}?number=1`);
-  if(!r.ok) throw 0;
+  if(!r.ok)throw 0;
   const j=await r.json();
   const loc=j?.waypoints?.[0]?.location;
-  if(!loc) throw 0;
+  if(!loc)throw 0;
   const pt=[loc[1],loc[0]];
-  snapCache.set(k,pt); return pt;
+  snapCache.set(k,pt);return pt;
 }
-function maybeRequestSnap(rawLat,rawLon) {
-  if(snapPending) return;
-  if(!lastSnapRaw) lastSnapRaw=[rawLat,rawLon];
-  if(haversineMeters(lastSnapRaw[0],lastSnapRaw[1],rawLat,rawLon)<SNAP_MIN_MOVE_M) return;
+function maybeRequestSnap(rawLat,rawLon){
+  if(snapPending)return;
+  if(!lastSnapRaw)lastSnapRaw=[rawLat,rawLon];
+  if(haversineMeters(lastSnapRaw[0],lastSnapRaw[1],rawLat,rawLon)<SNAP_MIN_MOVE_M)return;
   snapPending=true;
   const rLat=rawLat,rLon=rawLon;
   lastSnapRaw=[rawLat,rawLon];
   snapToRoad(rLat,rLon).then(pt=>{
-    if(haversineMeters(rLat,rLon,pt[0],pt[1])<=SNAP_MAX_ERR_M) lastSnapped={pt,t:Date.now()};
-  }).catch(()=>{}).finally(()=>{ snapPending=false; });
+    if(haversineMeters(rLat,rLon,pt[0],pt[1])<=SNAP_MAX_ERR_M)lastSnapped={pt,t:Date.now()};
+  }).catch(()=>{}).finally(()=>{snapPending=false;});
 }
-function pickRoadPoint(rawLat,rawLon) {
+function pickRoadPoint(rawLat,rawLon){
   maybeRequestSnap(rawLat,rawLon);
-  if(lastSnapped&&(Date.now()-lastSnapped.t)<=SNAP_TTL_MS) {
+  if(lastSnapped&&(Date.now()-lastSnapped.t)<=SNAP_TTL_MS){
     if(haversineMeters(rawLat,rawLon,lastSnapped.pt[0],lastSnapped.pt[1])<=SNAP_MAX_ERR_M)
       return lastSnapped.pt;
   }
-  return [rawLat,rawLon];
+  return[rawLat,rawLon];
 }
 
 // ─── Filtro / ruta ────────────────────────────────────────────
 const SMOOTH_ALPHA_POS=0.45,MIN_ADD_DIST_M=3,MAX_JUMP_DRAW_M=200;
 let lastStableDraw=null,lastSmoothed=null;
 
-function pushTrail(latLng) {
+function pushTrail(latLng){
   trailLatLngs.push(latLng);
-  if(trailLatLngs.length>MAX_POINTS) trailLatLngs.shift();
-  if(trailVisible) trailLine.setLatLngs(trailLatLngs);
+  if(trailLatLngs.length>MAX_POINTS)trailLatLngs.shift();
+  if(trailVisible)trailLine.setLatLngs(trailLatLngs);
 }
-function stablePoint(lat,lon) {
+function stablePoint(lat,lon){
   const p=[lat,lon];
   if(!lastStableDraw){lastStableDraw=p;return p;}
-  if(haversineMeters(lastStableDraw[0],lastStableDraw[1],p[0],p[1])>MAX_JUMP_DRAW_M) return lastStableDraw;
-  lastStableDraw=p; return p;
+  if(haversineMeters(lastStableDraw[0],lastStableDraw[1],p[0],p[1])>MAX_JUMP_DRAW_M)return lastStableDraw;
+  lastStableDraw=p;return p;
 }
-function updateGreenTrailForced(rawLat,rawLon) {
+function updateGreenTrailForced(rawLat,rawLon){
   const p0=stablePoint(rawLat,rawLon);
   const roadPt=pickRoadPoint(p0[0],p0[1]);
   lastSmoothed=ema2(lastSmoothed,roadPt,SMOOTH_ALPHA_POS);
   const p=lastSmoothed;
-  if(trailLatLngs.length===0) pushTrail(p);
-  else {
+  if(trailLatLngs.length===0)pushTrail(p);
+  else{
     const last=trailLatLngs[trailLatLngs.length-1];
-    if(haversineMeters(last[0],last[1],p[0],p[1])>=MIN_ADD_DIST_M) pushTrail(p);
+    if(haversineMeters(last[0],last[1],p[0],p[1])>=MIN_ADD_DIST_M)pushTrail(p);
   }
-  if(trailVisible) trailHead.setLatLngs([p,[rawLat,rawLon]]);
+  if(trailVisible)trailHead.setLatLngs([p,[rawLat,rawLon]]);
 }
 
-// ─── Paradas ──────────────────────────────────────────────────
-const stops = [
-  {id:"p1",  name:"Contenedor 1",  lat:0.2308,   lon:-78.25777},
-  {id:"p2",  name:"Contenedor 2",  lat:0.22938,  lon:-78.25877},
-  {id:"p3",  name:"Contenedor 3",  lat:0.23075,  lon:-78.26084},
-  {id:"p4",  name:"Contenedor 4",  lat:0.23180,  lon:-78.26224},
-  {id:"p5",  name:"Contenedor 5",  lat:0.22984,  lon:-78.26385},
-  {id:"p6",  name:"Contenedor 6",  lat:0.22785,  lon:-78.26531},
-  {id:"p7",  name:"Contenedor 7",  lat:0.22665,  lon:-78.26677},
-  {id:"p8",  name:"Contenedor 8",  lat:0.22999,  lon:-78.26621},
-  {id:"p9",  name:"Contenedor 9",  lat:0.23139,  lon:-78.26623},
-  {id:"p10", name:"Contenedor 10", lat:0.23271,  lon:-78.26802},
-  {id:"p11", name:"Contenedor 11", lat:0.23999,  lon:-78.28425},
-  {id:"p12", name:"Contenedor 12", lat:0.23828,  lon:-78.2876},
-  {id:"p13", name:"Contenedor 13", lat:0.23716,  lon:-78.28993},
-  {id:"p14", name:"Contenedor 14", lat:0.23643,  lon:-78.29141},
-  {id:"p15", name:"Contenedor 15", lat:0.23563,  lon:-78.29283},
-  {id:"p16", name:"Contenedor 16", lat:0.23510,  lon:-78.29124},
-  {id:"p17", name:"Contenedor 17", lat:0.23576,  lon:-78.29013},
-  {id:"p18", name:"Contenedor 18", lat:0.23641,  lon:-78.28886},
-  {id:"p19", name:"Contenedor 19", lat:0.23688,  lon:-78.28772},
-  {id:"p20", name:"Contenedor 20", lat:0.23796,  lon:-78.28809},
-  {id:"p21", name:"Contenedor 21", lat:0.23866,  lon:-78.28675},
-  {id:"p22", name:"Contenedor 22", lat:0.23993,  lon:-78.28424},
-  {id:"p23", name:"Contenedor 23", lat:0.2339,   lon:-78.26907},
-  {id:"p24", name:"Contenedor 24", lat:0.23162,  lon:-78.26659},
-  {id:"p25", name:"Contenedor 25", lat:0.23054,  lon:-78.2644},
-  {id:"p26", name:"Contenedor 26", lat:0.23234,  lon:-78.26315},
-  {id:"p27", name:"Contenedor 27", lat:0.23144,  lon:-78.26194},
-  {id:"p28", name:"Contenedor 28", lat:0.2294,   lon:-78.25925},
-  {id:"p29", name:"Contenedor 29", lat:0.23084,  lon:-78.25798}
+// ─── Paradas (contenedores) ───────────────────────────────────
+const stops=[
+  {id:"p1",  name:"Contenedor 1",  lat:0.2308,  lon:-78.25777},
+  {id:"p2",  name:"Contenedor 2",  lat:0.22938, lon:-78.25877},
+  {id:"p3",  name:"Contenedor 3",  lat:0.23075, lon:-78.26084},
+  {id:"p4",  name:"Contenedor 4",  lat:0.23180, lon:-78.26224},
+  {id:"p5",  name:"Contenedor 5",  lat:0.22984, lon:-78.26385},
+  {id:"p6",  name:"Contenedor 6",  lat:0.22785, lon:-78.26531},
+  {id:"p7",  name:"Contenedor 7",  lat:0.22665, lon:-78.26677},
+  {id:"p8",  name:"Contenedor 8",  lat:0.22999, lon:-78.26621},
+  {id:"p9",  name:"Contenedor 9",  lat:0.23139, lon:-78.26623},
+  {id:"p10", name:"Contenedor 10", lat:0.23271, lon:-78.26802},
+  {id:"p11", name:"Contenedor 11", lat:0.23999, lon:-78.28425},
+  {id:"p12", name:"Contenedor 12", lat:0.23828, lon:-78.2876},
+  {id:"p13", name:"Contenedor 13", lat:0.23716, lon:-78.28993},
+  {id:"p14", name:"Contenedor 14", lat:0.23643, lon:-78.29141},
+  {id:"p15", name:"Contenedor 15", lat:0.23563, lon:-78.29283},
+  {id:"p16", name:"Contenedor 16", lat:0.23510, lon:-78.29124},
+  {id:"p17", name:"Contenedor 17", lat:0.23576, lon:-78.29013},
+  {id:"p18", name:"Contenedor 18", lat:0.23641, lon:-78.28886},
+  {id:"p19", name:"Contenedor 19", lat:0.23688, lon:-78.28772},
+  {id:"p20", name:"Contenedor 20", lat:0.23796, lon:-78.28809},
+  {id:"p21", name:"Contenedor 21", lat:0.23866, lon:-78.28675},
+  {id:"p22", name:"Contenedor 22", lat:0.23993, lon:-78.28424},
+  {id:"p23", name:"Contenedor 23", lat:0.2339,  lon:-78.26907},
+  {id:"p24", name:"Contenedor 24", lat:0.23162, lon:-78.26659},
+  {id:"p25", name:"Contenedor 25", lat:0.23054, lon:-78.2644},
+  {id:"p26", name:"Contenedor 26", lat:0.23234, lon:-78.26315},
+  {id:"p27", name:"Contenedor 27", lat:0.23144, lon:-78.26194},
+  {id:"p28", name:"Contenedor 28", lat:0.2294,  lon:-78.25925},
+  {id:"p29", name:"Contenedor 29", lat:0.23084, lon:-78.25798}
 ];
 const stopMarkers=new Map();
 let activeStopId=null;
 
-function buildStopPopupHtml(name,etaTxt="--",distTxt="--",speedTxt="--") {
-  return `<div class="stop-popup-wrap">
+function buildStopPopupHtml(name,etaTxt="--",distTxt="--",speedTxt="--"){
+  return`<div class="stop-popup-wrap">
     <span class="stop-popup-title">🗑️ ${name}</span>
     <span class="stop-popup-line">Llegada: ${etaTxt}</span>
     <span class="stop-popup-line">Distancia: ${distTxt}</span>
@@ -764,8 +762,8 @@ function buildStopPopupHtml(name,etaTxt="--",distTxt="--",speedTxt="--") {
 stops.forEach(s=>{
   const m=L.marker([s.lat,s.lon],{icon:stopIcon}).addTo(map);
   m.bindPopup(buildStopPopupHtml(s.name));
-  m.on("popupopen", ()=>{ soundStopPopup(); activeStopId=s.id; pauseFollowFor(); });
-  m.on("popupclose",()=>{ if(activeStopId===s.id) activeStopId=null; });
+  m.on("popupopen", ()=>{soundStopPopup();activeStopId=s.id;pauseFollowFor();});
+  m.on("popupclose",()=>{if(activeStopId===s.id)activeStopId=null;});
   stopMarkers.set(s.id,m);
 });
 
@@ -774,26 +772,26 @@ const NODO_FIJO_ID="NodoFijo";
 let nodoFijoMarker=null;
 let nodoFijoLast={dist_m:null,eta_s:null};
 
-function buildNodoFijoPopupHtml(speedKmh) {
+function buildNodoFijoPopupHtml(speedKmh){
   const distTxt=(isFinite(nodoFijoLast.dist_m)&&nodoFijoLast.dist_m>=0)?formatDist(nodoFijoLast.dist_m):"--";
   const etaTxt =(isFinite(nodoFijoLast.eta_s) &&nodoFijoLast.eta_s >0) ?formatETA(nodoFijoLast.eta_s) :"--";
   return buildStopPopupHtml("NodoFijo",etaTxt,distTxt,`${Number(speedKmh||0).toFixed(1)} km/h`);
 }
-function upsertNodoFijoMarker(lat,lon) {
-  if(!nodoFijoMarker) {
+function upsertNodoFijoMarker(lat,lon){
+  if(!nodoFijoMarker){
     nodoFijoMarker=L.marker([lat,lon],{icon:stopIcon}).addTo(map);
     nodoFijoMarker.bindPopup(buildNodoFijoPopupHtml(0));
-    nodoFijoMarker.on("popupopen", ()=>{ soundStopPopup(); activeStopId=NODO_FIJO_ID; pauseFollowFor(); });
-    nodoFijoMarker.on("popupclose",()=>{ if(activeStopId===NODO_FIJO_ID) activeStopId=null; });
+    nodoFijoMarker.on("popupopen", ()=>{soundStopPopup();activeStopId=NODO_FIJO_ID;pauseFollowFor();});
+    nodoFijoMarker.on("popupclose",()=>{if(activeStopId===NODO_FIJO_ID)activeStopId=null;});
     stopMarkers.set(NODO_FIJO_ID,nodoFijoMarker);
-  } else nodoFijoMarker.setLatLng([lat,lon]);
+  }else nodoFijoMarker.setLatLng([lat,lon]);
 }
 
 // ─── Estado bus ───────────────────────────────────────────────
-function setBusMovingState(isMoving) {
-  if(busIsMoving===isMoving) return;
+function setBusMovingState(isMoving){
+  if(busIsMoving===isMoving)return;
   busIsMoving=isMoving;
-  if(isMoving) soundBusMoving(); else soundBusStopped();
+  if(isMoving)soundBusMoving();else soundBusStopped();
   busIcon=L.divIcon({className:"",html:makeBusIconHtml(busIsMoving),iconSize:[30,30],iconAnchor:[15,15]});
   busMarker.setIcon(busIcon);
   const el=document.getElementById("busState");
@@ -806,49 +804,174 @@ function setBusMovingState(isMoving) {
 
 // ─── Firebase listeners (bus) ─────────────────────────────────
 onValue(ref(db,"NodoFijo"),snap=>{
-  const d=snap.val(); if(!d) return;
+  const d=snap.val();if(!d)return;
   latestFijoData=d;
-  if(infoOpen) renderInfo();
+  if(infoOpen)renderInfo();
   const lat=Number(d.lat||0),lon=Number(d.lon||0);
-  if(!lat||!lon) return;
+  if(!lat||!lon)return;
   nodoFijoLast.dist_m=(d.bus_dist_m!==undefined)?Number(d.bus_dist_m):null;
   nodoFijoLast.eta_s =(d.bus_eta_s !==undefined)?Number(d.bus_eta_s) :null;
   upsertNodoFijoMarker(lat,lon);
 });
 onValue(ref(db,"NodoMovil"),snap=>{
-  const d=snap.val(); if(!d) return;
+  const d=snap.val();if(!d)return;
   latestBusData=d;
-  if(infoOpen) renderInfo();
+  if(infoOpen)renderInfo();
 });
 
-// ─── Aplica datos a UI y mapa ─────────────────────────────────
-function applyBusDataToUIAndMap(d) {
+// ─── Aplica datos bus a UI/mapa ───────────────────────────────
+function applyBusDataToUIAndMap(d){
   const lat=Number(d.lat||0),lon=Number(d.lon||0);
-  if(!lat||!lon) return null;
+  if(!lat||!lon)return null;
   const rawSpeedKmh =Number(d.speed_kmh||0);
   const usedSpeedKmh=pickSpeedKmh(rawSpeedKmh);
   document.getElementById("hora").textContent=d.hora_ecuador??"--";
   setBusMovingState(rawSpeedKmh>=1.0);
   const busPos=[lat,lon];
   busMarker.setLatLng(busPos);
-  if(followEnabled) map.panTo(busPos,{animate:true,duration:0.4});
-  if(!lastLatLng) map.setView(busPos,16);
+  if(followEnabled)map.panTo(busPos,{animate:true,duration:0.4});
+  if(!lastLatLng)map.setView(busPos,16);
   lastLatLng=busPos;
   const ph=buildBusPopupHtml(rawSpeedKmh,busIsMoving);
-  if(busMarker.getPopup()) busMarker.setPopupContent(ph);
+  if(busMarker.getPopup())busMarker.setPopupContent(ph);
   else busMarker.bindPopup(ph);
-  return {lat,lon,rawSpeedKmh,usedSpeedKmh};
+  return{lat,lon,rawSpeedKmh,usedSpeedKmh};
 }
 
+// ─── Popup de solicitud (mismos campos que contenedor) ────────
+// activeSolKey: fbKey de la solicitud cuyo popup está abierto
+let activeSolKey = null;
+
+function buildSolPopupHtml(color, esMio, fbKey, etaTxt="--", distTxt="--", speedTxt="--"){
+  const cancelBtn = esMio
+    ? `<button onclick="window._cancelarSolicitud('${fbKey}')"
+         style="margin-top:5px;padding:2px 10px;border:1px solid #bbb;border-radius:6px;
+                background:#fff;cursor:pointer;font-size:11px;">Cancelar</button>`
+    : `<span style="font-size:10px;color:#888;">Otro usuario</span>`;
+  return `<div class="sol-popup-wrap">
+    <span class="sol-popup-title">📍 Solicitud <span style="color:${color};">■</span></span>
+    <span class="sol-popup-line">Llegada: ${etaTxt}</span>
+    <span class="sol-popup-line">Distancia: ${distTxt}</span>
+    <span class="sol-popup-line">Velocidad: ${speedTxt}</span>
+    <div style="text-align:center;">${cancelBtn}</div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ─── Solicitudes en tiempo real (Firebase) ────────────────────
+// ═══════════════════════════════════════════════════════════════
+const SOLICITUD_TTL_MS=10*60*1000;
+const solicitudesRef=ref(db,"Solicitudes");
+// fbKey → { marker, tickerId, stopSound, autoExpire, lat, lon, color, esMio }
+const marcadoresActivos=new Map();
+
+const COLORES_POOL=[
+  "#e74c3c","#e67e22","#f1c40f","#2ecc71","#1abc9c",
+  "#3498db","#9b59b6","#e91e63","#00bcd4","#ff5722",
+  "#8bc34a","#ff9800","#673ab7","#009688","#f44336",
+  "#cddc39","#03a9f4","#ff4081","#76ff03","#40c4ff"
+];
+function colorForKey(key){
+  let hash=0;
+  for(let i=0;i<key.length;i++)hash=(hash*31+key.charCodeAt(i))>>>0;
+  return COLORES_POOL[hash%COLORES_POOL.length];
+}
+function freqForKey(key){
+  let hash=0;
+  for(let i=0;i<key.length;i++)hash=(hash*17+key.charCodeAt(i))>>>0;
+  return SOLICITUD_FREQ_BASE[hash%SOLICITUD_FREQ_BASE.length];
+}
+function formatCountdown(ms){
+  if(ms<=0)return "0:00";
+  const s=Math.ceil(ms/1000),m=Math.floor(s/60),ss=s%60;
+  return`${m}:${String(ss).padStart(2,"0")}`;
+}
+
+function dibujarSolicitudEnMapa(fbKey,data){
+  if(marcadoresActivos.has(fbKey))return;
+  const{lat,lon,expireAt,uid}=data;
+  const remaining=expireAt-Date.now();
+  if(remaining<=0)return;
+
+  const color=colorForKey(fbKey);
+  const freqP=freqForKey(fbKey);
+  const esMio=(uid===MY_UID);
+
+  const html=`
+    <div style="position:relative;width:52px;height:52px;">
+      <div class="solicitud-ring" style="border-color:${color};top:50%;left:50%;"></div>
+      <div class="solicitud-core" style="background:${color};top:50%;left:50%;"></div>
+      <div class="solicitud-timer" id="stimer-${fbKey}">${formatCountdown(remaining)}</div>
+    </div>`;
+
+  const icon=L.divIcon({className:"",html,iconSize:[52,52],iconAnchor:[26,26]});
+  const marker=L.marker([lat,lon],{icon,zIndexOffset:500}).addTo(map);
+
+  // Popup inicial con ETA en "--" — se actualiza igual que los contenedores
+  marker.bindPopup(buildSolPopupHtml(color,esMio,fbKey));
+  marker.on("popupopen", ()=>{ activeSolKey=fbKey; pauseFollowFor(); });
+  marker.on("popupclose",()=>{ if(activeSolKey===fbKey) activeSolKey=null; });
+
+  const tickerId=setInterval(()=>{
+    const rem=expireAt-Date.now();
+    const el=document.getElementById(`stimer-${fbKey}`);
+    if(el)el.textContent=formatCountdown(rem);
+    if(rem<=0)clearInterval(tickerId);
+  },1000);
+
+  const stopSound=crearSonidoSolicitud(freqP);
+  const autoExpire=setTimeout(()=>quitarMarcador(fbKey),remaining+500);
+
+  marcadoresActivos.set(fbKey,{marker,tickerId,stopSound,autoExpire,lat,lon,color,esMio});
+}
+
+function quitarMarcador(fbKey){
+  const item=marcadoresActivos.get(fbKey);
+  if(!item)return;
+  marcadoresActivos.delete(fbKey);
+  clearInterval(item.tickerId);
+  clearTimeout(item.autoExpire);
+  item.stopSound();
+  if(map.hasLayer(item.marker))map.removeLayer(item.marker);
+  if(activeSolKey===fbKey)activeSolKey=null;
+}
+
+onValue(solicitudesRef,snap=>{
+  const data=snap.val()||{};
+  const claves=new Set(Object.keys(data));
+  for(const[k,v]of Object.entries(data)){
+    if(!marcadoresActivos.has(k))dibujarSolicitudEnMapa(k,v);
+  }
+  for(const k of marcadoresActivos.keys()){
+    if(!claves.has(k))quitarMarcador(k);
+  }
+});
+
+// Limpieza periódica de expiradas (solo las propias)
+setInterval(async()=>{
+  try{
+    const snap=await new Promise(res=>onValue(solicitudesRef,res,{onlyOnce:true}));
+    const data=snap.val()||{};
+    for(const[k,v]of Object.entries(data)){
+      if(v.uid===MY_UID&&v.expireAt<=Date.now()){
+        await remove(ref(db,`Solicitudes/${k}`));
+      }
+    }
+  }catch(e){}
+},30000);
+
+// ─── Loop 3 s — actualiza ETA de contenedores Y solicitudes ──
 setInterval(()=>{
-  if(!latestBusData) return;
+  if(!latestBusData)return;
   const info=applyBusDataToUIAndMap(latestBusData);
-  if(!info) return;
+  if(!info)return;
   updateGreenTrailForced(info.lat,info.lon);
+
+  // ── ETA contenedores (igual que antes) ──
   if(activeStopId){
     if(activeStopId===NODO_FIJO_ID&&nodoFijoMarker){
       nodoFijoMarker.setPopupContent(buildNodoFijoPopupHtml(info.usedSpeedKmh));
-    } else {
+    }else{
       const s=stops.find(x=>x.id===activeStopId);
       const m=stopMarkers.get(activeStopId);
       if(s&&m){
@@ -860,210 +983,74 @@ setInterval(()=>{
       }
     }
   }
+
+  // ── ETA solicitud activa (exactamente los mismos parámetros) ──
+  if(activeSolKey){
+    const item=marcadoresActivos.get(activeSolKey);
+    if(item&&item.marker.isPopupOpen()){
+      const dist2=haversineMeters(info.lat,info.lon,item.lat,item.lon);
+      const eta2 =formatETA(calcEtaSeconds(dist2,info.usedSpeedKmh));
+      item.marker.setPopupContent(buildSolPopupHtml(
+        item.color, item.esMio, activeSolKey,
+        eta2, formatDist(dist2), `${info.usedSpeedKmh.toFixed(1)} km/h`
+      ));
+    }
+  }
+
   if(busMarker.isPopupOpen())
     busMarker.setPopupContent(buildBusPopupHtml(info.rawSpeedKmh,busIsMoving));
 },3000);
 
-// ═══════════════════════════════════════════════════════════════
-// ─── Solicitudes compartidas en tiempo real (Firebase) ────────
-// ═══════════════════════════════════════════════════════════════
-const SOLICITUD_TTL_MS = 10 * 60 * 1000; // 10 minutos
-const solicitudesRef   = ref(db, "Solicitudes");
-
-// Mapa local de markers activos: fbKey → { marker, tickerId, stopSound }
-const marcadoresActivos = new Map();
-
-const COLORES_POOL = [
-  "#e74c3c","#e67e22","#f1c40f","#2ecc71","#1abc9c",
-  "#3498db","#9b59b6","#e91e63","#00bcd4","#ff5722",
-  "#8bc34a","#ff9800","#673ab7","#009688","#f44336",
-  "#cddc39","#03a9f4","#ff4081","#76ff03","#40c4ff"
-];
-// Color determinístico por fbKey (mismo color para todos los usuarios)
-function colorForKey(key) {
-  let hash=0;
-  for(let i=0;i<key.length;i++) hash=(hash*31+key.charCodeAt(i))>>>0;
-  return COLORES_POOL[hash % COLORES_POOL.length];
-}
-// Perfil de sonido determinístico por fbKey
-function freqForKey(key) {
-  let hash=0;
-  for(let i=0;i<key.length;i++) hash=(hash*17+key.charCodeAt(i))>>>0;
-  return SOLICITUD_FREQ_BASE[hash % SOLICITUD_FREQ_BASE.length];
-}
-
-function formatCountdown(ms) {
-  if(ms<=0) return "0:00";
-  const s=Math.ceil(ms/1000);
-  const m=Math.floor(s/60), ss=s%60;
-  return `${m}:${String(ss).padStart(2,"0")}`;
-}
-
-function dibujarSolicitudEnMapa(fbKey, data) {
-  // Si ya existe este marcador, no volver a crearlo
-  if(marcadoresActivos.has(fbKey)) return;
-
-  const { lat, lon, expireAt, uid } = data;
-  const remaining = expireAt - Date.now();
-  if(remaining <= 0) return; // ya expiró
-
-  const color      = colorForKey(fbKey);
-  const freqP      = freqForKey(fbKey);
-  const esMio      = (uid === MY_UID);
-
-  const html = `
-    <div style="position:relative;width:52px;height:52px;">
-      <div class="solicitud-ring" style="border-color:${color};top:50%;left:50%;"></div>
-      <div class="solicitud-core" style="background:${color};top:50%;left:50%;"></div>
-      <div class="solicitud-timer" id="stimer-${fbKey}">
-        ${formatCountdown(remaining)}
-      </div>
-    </div>`;
-
-  const icon = L.divIcon({
-    className:"", html,
-    iconSize:[52,52], iconAnchor:[26,26]
-  });
-
-  const marker = L.marker([lat,lon],{icon,zIndexOffset:500}).addTo(map);
-
-  // Solo el dueño puede cancelar
-  const cancelBtn = esMio
-    ? `<button onclick="window._cancelarSolicitud('${fbKey}')"
-         style="margin-top:5px;padding:2px 10px;border:1px solid #bbb;border-radius:6px;
-                background:#fff;cursor:pointer;font-size:11px;">Cancelar</button>`
-    : `<span style="font-size:10px;color:#888;">Otro usuario</span>`;
-
-  const popupHtml = `<div style="font-family:Arial,sans-serif;font-size:12px;text-align:center;min-width:110px;">
-    <b>📍 Solicitud</b><br>
-    <span style="color:${color};">■</span> Activa<br>
-    ${cancelBtn}
-  </div>`;
-  marker.bindPopup(popupHtml);
-  marker.on("popupopen",()=>pauseFollowFor());
-
-  // Countdown ticker
-  const tickerId = setInterval(()=>{
-    const rem = expireAt - Date.now();
-    const el  = document.getElementById(`stimer-${fbKey}`);
-    if(el) el.textContent = formatCountdown(rem);
-    if(rem <= 0) {
-      clearInterval(tickerId);
-      // Firebase onValue se encargará de quitar el nodo cuando expire
-    }
-  },1000);
-
-  // Sonido palpitante
-  const stopSound = crearSonidoSolicitud(freqP);
-
-  // Auto-expiración local (por si el listener tarda)
-  const autoExpire = setTimeout(()=>{
-    quitarMarcador(fbKey);
-  }, remaining + 500);
-
-  marcadoresActivos.set(fbKey, { marker, tickerId, stopSound, autoExpire });
-}
-
-function quitarMarcador(fbKey) {
-  const item = marcadoresActivos.get(fbKey);
-  if(!item) return;
-  marcadoresActivos.delete(fbKey);
-  clearInterval(item.tickerId);
-  clearTimeout(item.autoExpire);
-  item.stopSound();
-  if(map.hasLayer(item.marker)) map.removeLayer(item.marker);
-}
-
-// ─── Escucha en tiempo real todas las solicitudes ─────────────
-onValue(solicitudesRef, snap => {
-  const data = snap.val() || {};
-  const claves = new Set(Object.keys(data));
-
-  // Agregar nuevas
-  for(const [k,v] of Object.entries(data)) {
-    if(!marcadoresActivos.has(k)) dibujarSolicitudEnMapa(k, v);
-  }
-  // Quitar las que ya no están en Firebase (canceladas o expiradas)
-  for(const k of marcadoresActivos.keys()) {
-    if(!claves.has(k)) quitarMarcador(k);
-  }
-});
-
-// ─── Limpieza automática de solicitudes expiradas en Firebase ─
-// Solo el usuario que la creó la borra cuando detecta que expiró.
-// Se revisa cada 30 s para no sobrecargar.
-setInterval(async ()=>{
-  try {
-    const snap = await new Promise(res=>onValue(solicitudesRef,res,{onlyOnce:true}));
-    const data = snap.val()||{};
-    for(const [k,v] of Object.entries(data)){
-      if(v.uid === MY_UID && v.expireAt <= Date.now()){
-        await remove(ref(db,`Solicitudes/${k}`));
-      }
-    }
-  } catch(e){}
-},30000);
-
-// ─── Publicar solicitud en Firebase ──────────────────────────
-async function crearSolicitud(lat, lon) {
-  // Verificar límite 12 h
-  const ok = await canUserSolicitar(db);
-  if(!ok) {
-    const rem = await tiempoRestante(db);
+// ─── Publicar solicitud ───────────────────────────────────────
+async function crearSolicitud(lat,lon){
+  const ok=await canUserSolicitar(db);
+  if(!ok){
+    const rem=await tiempoRestante(db);
     soundBlocked();
-    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
+    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`,6000);
     return;
   }
-
-  const expireAt = Date.now() + SOLICITUD_TTL_MS;
-  const newRef   = push(solicitudesRef);
-  const fbKey    = newRef.key;
-
-  await set(newRef, { lat, lon, expireAt, uid: MY_UID });
+  const expireAt=Date.now()+SOLICITUD_TTL_MS;
+  const newRef=push(solicitudesRef);
+  await set(newRef,{lat,lon,expireAt,uid:MY_UID});
   await registrarSolicitudUsuario(db);
-  showToast("✅ Solicitud enviada — visible para todos", 3000);
+  showToast("✅ Solicitud enviada — visible para todos",3000);
 }
 
-// ─── Cancelar (solo el dueño) ─────────────────────────────────
-window._cancelarSolicitud = async function(fbKey) {
+window._cancelarSolicitud=async function(fbKey){
   map.closePopup();
   await remove(ref(db,`Solicitudes/${fbKey}`));
-  // Limpiar el límite del usuario al cancelar antes de los 10 min
-  // (opcional: no se resetea, así respetamos el cupo de 12 h igual)
 };
 
 // ─── Botón Solicitar (GPS) ────────────────────────────────────
-document.getElementById("btnSolicitar").addEventListener("click", async () => {
-  // Verificar antes de activar GPS para respuesta rápida
-  const ok = await canUserSolicitar(db);
-  if(!ok) {
-    const rem = await tiempoRestante(db);
+document.getElementById("btnSolicitar").addEventListener("click",async()=>{
+  const ok=await canUserSolicitar(db);
+  if(!ok){
+    const rem=await tiempoRestante(db);
     soundBlocked();
-    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
+    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`,6000);
     return;
   }
   soundSolicitar();
   pauseFollowFor();
-
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(
-      pos => { crearSolicitud(pos.coords.latitude, pos.coords.longitude); },
-      ()  => { const c=map.getCenter(); crearSolicitud(c.lat,c.lng); },
+      pos=>crearSolicitud(pos.coords.latitude,pos.coords.longitude),
+      ()=>{const c=map.getCenter();crearSolicitud(c.lat,c.lng);},
       {timeout:4000,maximumAge:10000,enableHighAccuracy:true}
     );
-  } else {
-    const c=map.getCenter();
-    crearSolicitud(c.lat,c.lng);
+  }else{
+    const c=map.getCenter();crearSolicitud(c.lat,c.lng);
   }
 });
 
 // ─── Botón Dibujar ────────────────────────────────────────────
 let drawMode=false;
-const btnDibujar = document.getElementById("btnDibujar");
-const drawHint   = document.getElementById("drawHint");
-const mapEl      = document.getElementById("map");
+const btnDibujar=document.getElementById("btnDibujar");
+const drawHint  =document.getElementById("drawHint");
+const mapEl     =document.getElementById("map");
 
-function activarModoDibujo() {
+function activarModoDibujo(){
   drawMode=true;
   btnDibujar.textContent="⭕ Dibujar: Si";
   btnDibujar.classList.add("drawing-active");
@@ -1074,7 +1061,7 @@ function activarModoDibujo() {
   soundDibujarOn();
   pauseFollowFor();
 }
-function desactivarModoDibujo() {
+function desactivarModoDibujo(){
   drawMode=false;
   btnDibujar.textContent="⭕ Dibujar";
   btnDibujar.classList.remove("drawing-active");
@@ -1084,33 +1071,34 @@ function desactivarModoDibujo() {
   map.scrollWheelZoom.enable();
 }
 
-btnDibujar.addEventListener("click", async () => {
+btnDibujar.addEventListener("click",async()=>{
   if(!drawMode){
-    // Verificar límite antes de activar el modo
-    const ok = await canUserSolicitar(db);
+    const ok=await canUserSolicitar(db);
     if(!ok){
-      const rem = await tiempoRestante(db);
+      const rem=await tiempoRestante(db);
       soundBlocked();
-      showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
+      showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`,6000);
       return;
     }
     activarModoDibujo();
-  } else {
+  }else{
     soundDibujarOff();
     desactivarModoDibujo();
   }
 });
 
-map.on("click", async function(e){
-  if(!drawMode) return;
+map.on("click",async function(e){
+  if(!drawMode)return;
   soundDibujarPlace();
   desactivarModoDibujo();
-  await crearSolicitud(e.latlng.lat, e.latlng.lng);
+  await crearSolicitud(e.latlng.lat,e.latlng.lng);
 });
 
-window.addEventListener("keydown", e=>{
-  if(e.key==="Escape"&&drawMode){ soundDibujarOff(); desactivarModoDibujo(); }
+window.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&drawMode){soundDibujarOff();desactivarModoDibujo();}
 });
 </script>
 </body>
 </html>
+HTMLEOF
+echo "done"
