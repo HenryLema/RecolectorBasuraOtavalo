@@ -770,7 +770,7 @@ function buildSolicitudPopupHtml(fbKey, esMio, color, etaTxt="--", distTxt="--",
        </span>`
     : `<span class="stop-popup-line" style="color:#888;font-size:10px;">Otro usuario</span>`;
   return `<div class="stop-popup-wrap">
-    <span class="stop-popup-title">📍 Solicitud <span style="color:${color};">■</span></span>
+    <span class="stop-popup-title">👋 Solicitud <span style="color:${color};">■</span></span>
     <span class="stop-popup-line">Llegada: ${etaTxt}</span>
     <span class="stop-popup-line">Distancia: ${distTxt}</span>
     <span class="stop-popup-line">Velocidad: ${speedTxt}</span>
@@ -1053,7 +1053,7 @@ async function crearSolicitud(lat, lon) {
   const newRef   = push(solicitudesRef);
   await set(newRef, { lat, lon, expireAt, uid: MY_UID });
   await registrarSolicitudUsuario(db);
-  showToast("✅ Solicitud enviada — visible para todos", 3000);
+  showToast("✅ Solicitud Enviada", 3000);
 }
 
 // ─── Cancelar (solo el dueño) ─────────────────────────────────
