@@ -685,7 +685,18 @@ function pickRoadPoint(rawLat,rawLon) {
 }
 
 // ─── Filtro / ruta ────────────────────────────────────────────
-const SMOOTH_ALPHA_POS=0.45,MIN_ADD_DIST_M=3,MAX_JUMP_DRAW_M=200;
+const SMOOTH_ALPHA_POS = 0.40;
+// ✅ CORRECCIÓN CLAVE: umbral mínimo de distancia para agregar punto al trail
+const MIN_ADD_DIST_M   = 12;   // era 3 — evita garabatos en reposo
+const MAX_JUMP_DRAW_M  = 150;  // era 200
+
+// ✅ NUEVO: umbral de velocidad para considerar el vehículo detenido (JS)
+const STOPPED_SPEED_KMH   = 3.0;
+// ✅ NUEVO: cuántos ciclos consecutivos quieto antes de congelar el trail
+const STOPPED_FREEZE_CYCLES = 3;
+let   stoppedCycleCount     = 0;
+let   trailFrozen           = false;  // cuando es true, no se agregan puntos
+
 let lastStableDraw=null,lastSmoothed=null;
 
 function pushTrail(latLng) {
@@ -699,17 +710,52 @@ function stablePoint(lat,lon) {
   if(haversineMeters(lastStableDraw[0],lastStableDraw[1],p[0],p[1])>MAX_JUMP_DRAW_M) return lastStableDraw;
   lastStableDraw=p; return p;
 }
-function updateGreenTrailForced(rawLat,rawLon) {
-  const p0=stablePoint(rawLat,rawLon);
-  const roadPt=pickRoadPoint(p0[0],p0[1]);
-  lastSmoothed=ema2(lastSmoothed,roadPt,SMOOTH_ALPHA_POS);
-  const p=lastSmoothed;
-  if(trailLatLngs.length===0) pushTrail(p);
-  else {
-    const last=trailLatLngs[trailLatLngs.length-1];
-    if(haversineMeters(last[0],last[1],p[0],p[1])>=MIN_ADD_DIST_M) pushTrail(p);
+
+// ✅ FUNCIÓN CORREGIDA: congela trail cuando está detenido
+function updateGreenTrailForced(rawLat, rawLon, rawSpeedKmh) {
+  const speedKmh = Number(rawSpeedKmh || 0);
+
+  // Detectar si está detenido
+  if (speedKmh < STOPPED_SPEED_KMH) {
+    stoppedCycleCount = Math.min(stoppedCycleCount + 1, STOPPED_FREEZE_CYCLES + 1);
+  } else {
+    // Vehículo en movimiento — descongelar trail
+    stoppedCycleCount = 0;
+    trailFrozen = false;
   }
-  if(trailVisible) trailHead.setLatLngs([p,[rawLat,rawLon]]);
+
+  // Activar congelación después de N ciclos quieto
+  if (stoppedCycleCount >= STOPPED_FREEZE_CYCLES) {
+    trailFrozen = true;
+  }
+
+  // Si está congelado: solo actualiza la cabeza visual pero NO agrega puntos
+  if (trailFrozen) {
+    // Mantener la "cabecita" exactamente en el último punto del trail
+    // (sin dibujar el segmento de ruido)
+    if (trailLatLngs.length > 0 && trailVisible) {
+      const last = trailLatLngs[trailLatLngs.length - 1];
+      trailHead.setLatLngs([last, last]); // punto en sí mismo = sin línea
+    }
+    return;
+  }
+
+  // Vehículo en movimiento: comportamiento normal con filtros
+  const p0 = stablePoint(rawLat, rawLon);
+  const roadPt = pickRoadPoint(p0[0], p0[1]);
+  lastSmoothed = ema2(lastSmoothed, roadPt, SMOOTH_ALPHA_POS);
+  const p = lastSmoothed;
+
+  if (trailLatLngs.length === 0) {
+    pushTrail(p);
+  } else {
+    const last = trailLatLngs[trailLatLngs.length - 1];
+    // ✅ Solo agrega punto si se movió más de MIN_ADD_DIST_M
+    if (haversineMeters(last[0], last[1], p[0], p[1]) >= MIN_ADD_DIST_M) {
+      pushTrail(p);
+    }
+  }
+  if (trailVisible) trailHead.setLatLngs([p, [rawLat, rawLon]]);
 }
 
 // ─── Paradas / contenedores ───────────────────────────────────
@@ -747,8 +793,6 @@ const stops = [
 const stopMarkers=new Map();
 let activeStopId=null;
 
-// ─── Popup genérico (contenedores + solicitudes) ──────────────
-// Igual para ambos: misma estructura, mismo estilo visual
 function buildStopPopupHtml(name, etaTxt="--", distTxt="--", speedTxt="--") {
   return `<div class="stop-popup-wrap">
     <span class="stop-popup-title">${name}</span>
@@ -758,7 +802,6 @@ function buildStopPopupHtml(name, etaTxt="--", distTxt="--", speedTxt="--") {
   </div>`;
 }
 
-// Popup de solicitud: misma estructura + botón cancelar del dueño
 function buildSolicitudPopupHtml(fbKey, esMio, color, etaTxt="--", distTxt="--", speedTxt="--") {
   const cancelBtn = esMio
     ? `<span class="stop-popup-line" style="text-align:center;display:block;margin-top:4px;">
@@ -858,14 +901,15 @@ function applyBusDataToUIAndMap(d) {
 }
 
 // ─── Loop 3 s ─────────────────────────────────────────────────
-// Actualiza bus + contenedores + solicitudes activas abiertas
-let activeSolicitudPopupKey = null; // fbKey de la solicitud con popup abierto
+let activeSolicitudPopupKey = null;
 
 setInterval(()=>{
   if(!latestBusData) return;
   const info=applyBusDataToUIAndMap(latestBusData);
   if(!info) return;
-  updateGreenTrailForced(info.lat,info.lon);
+
+  // ✅ Pasar velocidad cruda al trail para que detecte reposo
+  updateGreenTrailForced(info.lat, info.lon, info.rawSpeedKmh);
 
   // Contenedores / NodoFijo
   if(activeStopId){
@@ -884,11 +928,9 @@ setInterval(()=>{
     }
   }
 
-  // Bus popup
   if(busMarker.isPopupOpen())
     busMarker.setPopupContent(buildBusPopupHtml(info.rawSpeedKmh,busIsMoving));
 
-  // Solicitudes con popup abierto → actualizar ETA en tiempo real
   if(activeSolicitudPopupKey){
     const item=marcadoresActivos.get(activeSolicitudPopupKey);
     if(item && item.marker.isPopupOpen()){
@@ -916,7 +958,6 @@ setInterval(()=>{
 const SOLICITUD_TTL_MS = 10 * 60 * 1000;
 const solicitudesRef   = ref(db, "Solicitudes");
 
-// fbKey → { marker, tickerId, stopSound, autoExpire, lat, lon, esMio, color }
 const marcadoresActivos = new Map();
 
 const COLORES_POOL = [
@@ -970,7 +1011,6 @@ function dibujarSolicitudEnMapa(fbKey, data) {
 
   const marker = L.marker([lat,lon],{icon,zIndexOffset:500}).addTo(map);
 
-  // Popup inicial con ETA calculado si ya hay posición del bus
   const initialETA  = lastLatLng
     ? formatETA(calcEtaSeconds(haversineMeters(lastLatLng[0],lastLatLng[1],lat,lon), pickSpeedKmh(0)))
     : "--";
@@ -989,7 +1029,6 @@ function dibujarSolicitudEnMapa(fbKey, data) {
     if(activeSolicitudPopupKey === fbKey) activeSolicitudPopupKey = null;
   });
 
-  // Countdown ticker
   const tickerId = setInterval(()=>{
     const rem = expireAt - Date.now();
     const el  = document.getElementById(`stimer-${fbKey}`);
@@ -1000,7 +1039,6 @@ function dibujarSolicitudEnMapa(fbKey, data) {
   const stopSound  = crearSonidoSolicitud(freqP);
   const autoExpire = setTimeout(()=>{ quitarMarcador(fbKey); }, remaining+500);
 
-  // Guardamos lat/lon/esMio/color para actualizaciones del loop
   marcadoresActivos.set(fbKey, { marker, tickerId, stopSound, autoExpire, lat, lon, esMio, color });
 }
 
@@ -1015,7 +1053,6 @@ function quitarMarcador(fbKey) {
   if(activeSolicitudPopupKey===fbKey) activeSolicitudPopupKey=null;
 }
 
-// ─── Listener tiempo real solicitudes ─────────────────────────
 onValue(solicitudesRef, snap => {
   const data = snap.val() || {};
   const claves = new Set(Object.keys(data));
@@ -1027,7 +1064,6 @@ onValue(solicitudesRef, snap => {
   }
 });
 
-// ─── Limpieza expiradas en Firebase ───────────────────────────
 setInterval(async ()=>{
   try {
     const snap = await new Promise(res=>onValue(solicitudesRef,res,{onlyOnce:true}));
@@ -1040,7 +1076,6 @@ setInterval(async ()=>{
   } catch(e){}
 },30000);
 
-// ─── Publicar solicitud en Firebase ──────────────────────────
 async function crearSolicitud(lat, lon) {
   const ok = await canUserSolicitar(db);
   if(!ok) {
@@ -1056,13 +1091,11 @@ async function crearSolicitud(lat, lon) {
   showToast("✅ Solicitud Enviada", 3000);
 }
 
-// ─── Cancelar (solo el dueño) ─────────────────────────────────
 window._cancelarSolicitud = async function(fbKey) {
   map.closePopup();
   await remove(ref(db,`Solicitudes/${fbKey}`));
 };
 
-// ─── Botón Solicitar (GPS) ────────────────────────────────────
 document.getElementById("btnSolicitar").addEventListener("click", async () => {
   const ok = await canUserSolicitar(db);
   if(!ok) {
@@ -1085,7 +1118,6 @@ document.getElementById("btnSolicitar").addEventListener("click", async () => {
   }
 });
 
-// ─── Botón Dibujar ────────────────────────────────────────────
 let drawMode=false;
 const btnDibujar = document.getElementById("btnDibujar");
 const drawHint   = document.getElementById("drawHint");
