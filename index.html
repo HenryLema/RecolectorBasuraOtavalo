@@ -525,7 +525,7 @@ function renderInfo() {
     `Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
     `Satélites: ${safeVal(m.satelites)}`,
     `Velocidad: ${movilVel}`,
-    `HDOP: ${safeVal(m.hdop)}`
+    `Precisión: ${safeVal(m.hdop)}`
   ]);
   let fijoFlag="--";
   if(f.fijo_ok!==undefined) fijoFlag=boolToSiNo(f.fijo_ok);
@@ -536,7 +536,7 @@ function renderInfo() {
     `Longitud: ${f.lon!==undefined?safeNum(f.lon,6):"--"}`,
     `Satélites: ${safeVal(f.satelites)}`,
     `Fijo: ${fijoFlag}`,
-    `HDOP: ${safeVal(f.hdop)}`
+    `Precisión: ${safeVal(f.hdop)}`
   ]);
 }
 function openInfo()  { soundInfoOpen();  infoOpen=true;  renderInfo(); infoOverlay.style.display="flex";  infoOverlay.setAttribute("aria-hidden","false"); }
