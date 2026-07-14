@@ -875,7 +875,7 @@ onValue(ref(db,"NodoFijo"),snap=>{
   nodoFijoLast.eta_s =(d.bus_eta_s !==undefined)?Number(d.bus_eta_s) :null;
   upsertNodoFijoMarker(lat,lon);
 });
-onValue(ref(db,"NodoMovil"),snap=>{
+onValue(ref(db,"Recolector"),snap=>{
   const d=snap.val(); if(!d) return;
   latestBusData=d;
   if(infoOpen) renderInfo();
