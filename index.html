@@ -1,1175 +1,504 @@
-<!doctype html>
-<html lang="es">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Recolector Basura Otavalo</title>
+#include <Arduino.h>
+#include <WiFi.h>
+#include <time.h>
+#include <TinyGPSPlus.h>
+#include <HardwareSerial.h>
+#include <Firebase_ESP_Client.h>
+#include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+// =====================================================
+//                    CONFIGURACIÓN
+// =====================================================
+// ---------------- WIFI ----------------
+#define WIFI_SSID      "Lema"
+#define WIFI_PASSWORD  "1001769304"
 
-  <style>
-    *, *::before, *::after {
-      box-sizing: border-box;
-      box-shadow: none !important;
-      text-shadow: none !important;
-      -webkit-box-shadow: none !important;
-      filter: none !important;
-      -webkit-filter: none !important;
-    }
+// ---------------- FIREBASE ----------------
+#define API_KEY        "AIzaSyCZP36RLL7SEWvyLApKKFJzjjssNRe-_LE"
+#define DATABASE_URL   "https://recolectorbasuraotavalo-default-rtdb.firebaseio.com/"
 
-    html, body {
-      height: 100%; width: 100%;
-      margin: 0; padding: 0;
-      font-family: Arial, sans-serif;
-      font-size: 13px;
-      overflow: hidden;
-      -webkit-tap-highlight-color: transparent;
-    }
+// ---------------- GPS NEO-6M ----------------
+static const int GPS_RX_PIN = 16;    // GPS TX → ESP32 GPIO16 ✅
+static const int GPS_TX_PIN = 17;    // GPS RX ← ESP32 GPIO17 ✅ CONECTADO
+static const uint32_t GPS_BAUD_BOOT = 9600;
+static const uint32_t GPS_BAUD_RUN  = 38400;  // Máxima velocidad estable
+TinyGPSPlus gps;
+HardwareSerial GPS_Serial(2);
 
-    #map { position: fixed; inset: 0; z-index: 0; }
+// ---------------- NTP — Otavalo/Ecuador UTC-5 ----------------
+const long  gmtOffset_sec      = -5 * 3600;
+const int   daylightOffset_sec = 0;
 
-    #top {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 1000;
-      padding: clamp(4px,1.5vw,8px) clamp(6px,2vw,12px);
-      background: transparent;
-      pointer-events: none;
-    }
-    #top > * { pointer-events: auto; }
+// ---------------- Firebase Objects ----------------
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
 
-    #topRow {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: clamp(4px,1.2vw,7px);
-    }
+// ---------------- Rendimiento y Envío ----------------
+unsigned long lastSend = 0;
+const unsigned long SEND_INTERVAL_MS = 2000;  // ⚡ 2s → actualizaciones fluidas en mapa
+static unsigned long lastNetCheck = 0;
+const unsigned long NET_CHECK_MS  = 5000;
 
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      height: clamp(26px,5vw,34px);
-      padding: 0 clamp(6px,1.8vw,11px);
-      border: 1px solid rgba(200,200,200,.85);
-      border-radius: 10px;
-      font-size: clamp(10px,1.8vw,12px);
-      background: rgba(255,255,255,.78);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      white-space: nowrap;
-      line-height: 1;
-      cursor: default;
-      user-select: none;
-    }
+// ---------------- Anti-saltos y Validación ----------------
+bool hasLastAccepted = false;
+double lastLat = 0.0, lastLon = 0.0;
+unsigned long lastAcceptedMs = 0;
+const double MAX_SPEED_KMH_FOR_SANITY = 120.0;
+const double EXTRA_MARGIN             = 1.50;
+const double MIN_ABS_JUMP_M           = 25.0;
+const double HARD_MAX_JUMP_M          = 300.0;
 
-    button.chip {
-      cursor: pointer;
-      touch-action: manipulation;
-      -webkit-tap-highlight-color: transparent;
-      transition: background .12s;
-    }
-    button.chip:active { background: rgba(210,210,210,.95); transform: scale(.97); }
-    button.chip.drawing-active {
-      background: rgba(255, 220, 80, 0.92);
-      border-color: #e0a800;
-    }
-    button.chip:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none !important;
-    }
+// ---------------- Umbrales de Precisión ----------------
+const int    MIN_SATS_FOR_GOOD_FIX  = 5;
+const double MAX_HDOP_FOR_GOOD_FIX  = 1.8;   // Más exigente = mayor precisión
+const double VERY_BAD_HDOP          = 4.5;
+const double BADFIX_JUMP_M          = 20.0;
 
-    .title-chip {
-      height: auto;
-      min-height: clamp(26px,5vw,34px);
-      padding: clamp(3px,1vw,5px) clamp(6px,1.8vw,11px);
-      white-space: normal;
-      word-break: break-word;
-      line-height: 1.25;
-      max-width: 100%;
-    }
+// ---------------- Filtrado EMA Adaptativo ----------------
+const double EMA_ALPHA_BAD  = 0.15;
+const double EMA_ALPHA_STOP = 0.08;   // 🎯 Casi sin temblor en reposo
+const double EMA_ALPHA_SLOW = 0.35;
+const double EMA_ALPHA_CITY = 0.60;
+const double EMA_ALPHA_FAST = 0.85;   // Rápido: responde ágil
+const double STOP_SPEED_KMH  = 4.0;
+const double STOP_MIN_JUMP_M = 2.5;
+bool hasFiltered = false;
+double fLat = 0.0, fLon = 0.0;
 
-    .busstate-pill {
-      display: inline-block;
-      padding: 1px clamp(5px,1.5vw,8px);
-      border-radius: 8px;
-      color: #fff;
-      font-size: clamp(10px,1.8vw,12px);
-      line-height: 1.4;
-    }
-    .busstate-pill.moving  { background: #008000; }
-    .busstate-pill.stopped { background: #cc0000; }
+// ---------------- Ancla de Reposo ----------------
+bool    anchorActive = false;
+double  anchorLat = 0.0, anchorLon = 0.0;
+const double ANCHOR_RELEASE_M     = 6.0;
+const double ANCHOR_ACTIVATE_M    = 3.0;
+const int    ANCHOR_CONFIRM_CYCLES = 3;
+int     stopCycleCount = 0;
 
-    .bus-wrap {
-      width: clamp(26px,5vw,34px);
-      height: clamp(26px,5vw,34px);
-      border-radius: 999px;
-      display: flex; align-items: center; justify-content: center;
-      transform: translate(-50%,-50%);
-      border: none; outline: none;
-      user-select: none;
-    }
-    .bus-wrap.moving  { background: #008000; }
-    .bus-wrap.stopped { background: #cc0000; }
-    .bus-emoji { font-size: clamp(14px,3vw,20px); line-height: 1; }
-
-    .stop-icon {
-      font-size: clamp(22px,4vw,32px);
-      transform: translate(-50%,-50%);
-      display: block; line-height: 1;
-    }
-
-    #map.draw-mode { cursor: crosshair !important; }
-
-    #drawHint {
-      position: fixed;
-      bottom: clamp(60px,10vw,80px);
-      left: 50%; transform: translateX(-50%);
-      background: rgba(0,0,0,0.62);
-      color: #fff;
-      font-size: clamp(11px,2vw,13px);
-      padding: 5px 14px;
-      border-radius: 10px;
-      z-index: 1500;
-      pointer-events: none;
-      display: none;
-      white-space: nowrap;
-    }
-
-    #toast {
-      position: fixed;
-      bottom: clamp(60px,10vw,80px);
-      left: 50%; transform: translateX(-50%);
-      background: rgba(30,30,30,0.88);
-      color: #fff;
-      font-size: clamp(11px,2vw,13px);
-      padding: 7px 18px;
-      border-radius: 12px;
-      z-index: 3000;
-      pointer-events: none;
-      display: none;
-      text-align: center;
-      max-width: 90vw;
-      white-space: normal;
-    }
-
-    @keyframes pulse-ring {
-      0%   { transform: translate(-50%,-50%) scale(0.7); opacity: 1; }
-      70%  { transform: translate(-50%,-50%) scale(1.55); opacity: 0.25; }
-      100% { transform: translate(-50%,-50%) scale(0.7); opacity: 1; }
-    }
-    @keyframes pulse-core {
-      0%,100% { transform: translate(-50%,-50%) scale(1);    opacity: 0.92; }
-      50%      { transform: translate(-50%,-50%) scale(0.82); opacity: 0.70; }
-    }
-    .solicitud-ring {
-      width: 52px; height: 52px;
-      border-radius: 50%;
-      border-width: 3px; border-style: solid;
-      position: absolute;
-      animation: pulse-ring 1.4s ease-in-out infinite;
-      pointer-events: none;
-    }
-    .solicitud-core {
-      width: 22px; height: 22px;
-      border-radius: 50%;
-      position: absolute;
-      animation: pulse-core 1.4s ease-in-out infinite;
-      cursor: pointer;
-    }
-    .solicitud-timer {
-      position: absolute;
-      top: -18px; left: 50%; transform: translateX(-50%);
-      background: rgba(0,0,0,0.55);
-      color: #fff; font-size: 10px;
-      font-family: Arial, sans-serif;
-      padding: 1px 5px; border-radius: 6px;
-      white-space: nowrap; pointer-events: none;
-    }
-
-    .leaflet-popup-content-wrapper,
-    .leaflet-popup-tip     { box-shadow: none !important; }
-    .leaflet-marker-shadow { display: none !important; }
-    .leaflet-popup-content { font-family: Arial,sans-serif !important; font-weight: normal !important; }
-    .leaflet-marker-icon      { filter: none !important; -webkit-filter: none !important; }
-    .leaflet-zoom-animated    { filter: none !important; -webkit-filter: none !important; }
-    .leaflet-shadow-pane      { display: none !important; }
-    .leaflet-marker-pane img  { filter: none !important; -webkit-filter: none !important; }
-
-    .leaflet-top.leaflet-left  { display: none; }
-    .leaflet-bottom.leaflet-right {
-      bottom: clamp(12px,3vw,24px);
-      right:  clamp(8px,2vw,14px);
-    }
-
-    .popup-wrap      { width: clamp(130px,35vw,170px); font-family: Arial,sans-serif; }
-    .stop-popup-wrap { width: clamp(140px,38vw,180px); font-family: Arial,sans-serif; }
-
-    .popup-title, .popup-line,
-    .stop-popup-title, .stop-popup-line {
-      display: block; color: #000; font-weight: normal;
-      font-size: clamp(10px,2vw,12px); line-height: 1.3; margin: 3px 0;
-    }
-    .popup-title, .stop-popup-title { text-align: center; margin: 0 0 5px; }
-    .popup-val { font-weight: normal; }
-    .popup-val.moving  { color: #008000; }
-    .popup-val.stopped { color: #cc0000; }
-
-    #infoOverlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,.28);
-      display: none; align-items: center; justify-content: center;
-      z-index: 2000; padding: clamp(8px,3vw,20px);
-    }
-    #infoModal {
-      width: 100%;
-      max-width: min(780px, calc(100vw - 16px));
-      max-height: calc(100vh - 32px);
-      overflow-y: auto; background: #fff;
-      border: 1px solid rgba(210,210,210,.95);
-      border-radius: clamp(10px,2vw,16px);
-      padding: clamp(8px,2vw,14px) clamp(10px,2.5vw,16px);
-      font-family: Arial,sans-serif; font-size: clamp(11px,1.8vw,13px);
-      color: #000; -webkit-overflow-scrolling: touch;
-    }
-    #infoTopRow {
-      display: flex; align-items: center;
-      justify-content: space-between;
-      gap: 10px; margin-bottom: clamp(6px,1.5vw,10px);
-    }
-    #infoTitle  { font-size: clamp(11px,1.8vw,13px); font-weight: normal; opacity: .9; }
-    #infoClose  {
-      padding: clamp(3px,1vw,5px) clamp(8px,2vw,12px);
-      border: 1px solid #bbb; background: rgba(255,255,255,.95);
-      border-radius: 9px; font-size: clamp(10px,1.8vw,12px);
-      cursor: pointer; user-select: none; flex-shrink: 0;
-      touch-action: manipulation;
-    }
-    #infoGrid {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: clamp(8px,2vw,14px);
-    }
-    @media (max-width:480px) { #infoGrid { grid-template-columns: 1fr; } }
-    .infoCol {
-      border: 1px solid rgba(210,210,210,.85);
-      border-radius: clamp(8px,1.5vw,12px);
-      padding: clamp(7px,1.5vw,11px); background: #fff;
-    }
-    .infoColTitle {
-      text-align: center; font-size: clamp(11px,1.8vw,13px);
-      font-weight: normal; margin: 0 0 7px;
-    }
-    .infoLine {
-      font-size: clamp(10px,1.7vw,12px); font-weight: normal; margin: 3px 0;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-
-    #map, .chip, .stop-icon { touch-action: manipulation; }
-  </style>
-</head>
-
-<body>
-  <div id="top">
-    <div id="topRow">
-      <div class="chip title-chip">♻️ Recolector Basura Otavalo</div>
-      <div class="chip">⏱️ Hora: <span id="hora" style="margin-left:3px">--</span></div>
-      <div class="chip">Estado:&nbsp;<span id="busState" class="busstate-pill stopped">Detenido</span></div>
-      <button id="btnReload"      class="chip">🔃 Recargar</button>
-      <button id="btnToggleTrail" class="chip">🟢 Recorrido: Si</button>
-      <button id="btnInfo"        class="chip">ℹ️ Info</button>
-      <button id="btnSolicitar"   class="chip">🖐️ Solicitar</button>
-      <button id="btnDibujar"     class="chip">⭕ Dibujar</button>
-    </div>
-  </div>
-
-  <div id="map"></div>
-  <div id="drawHint">Toca el mapa para colocar tu solicitud</div>
-  <div id="toast"></div>
-
-  <div id="infoOverlay" aria-hidden="true">
-    <div id="infoModal" role="dialog" aria-modal="true">
-      <div id="infoTopRow">
-        <div id="infoTitle">Información en Tiempo Real</div>
-        <button id="infoClose">Cerrar</button>
-      </div>
-      <div id="infoGrid">
-        <div class="infoCol">
-          <div class="infoColTitle">Recolector Basura</div>
-          <div id="infoMovil"></div>
-        </div>
-        <div class="infoCol">
-          <div class="infoColTitle">Central</div>
-          <div id="infoFijo"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-<script type="module">
-import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-import { getDatabase, ref, onValue, set, push,
-         remove, serverTimestamp }                from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
-
-// ─── Audio Engine ─────────────────────────────────────────────
-const AudioCtx = window.AudioContext || window.webkitAudioContext;
-let _actx = null;
-function getACtx() { if(!_actx) _actx = new AudioCtx(); return _actx; }
-
-function playTone(opts) {
-  try {
-    const ctx = getACtx();
-    const { freqs=[440], dur=0.12, type="sine", vol=0.18 } = opts;
-    freqs.forEach((f,i) => {
-      const osc=ctx.createOscillator(), gain=ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type=type;
-      osc.frequency.setValueAtTime(f, ctx.currentTime+i*0.06);
-      gain.gain.setValueAtTime(vol, ctx.currentTime+i*0.06);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+i*0.06+dur);
-      osc.start(ctx.currentTime+i*0.06);
-      osc.stop(ctx.currentTime+i*0.06+dur+0.02);
-    });
-  } catch(e) {}
+// ---------------- LED Estado ----------------
+#ifndef LED_BUILTIN
+  #define LED_BUILTIN 2
+#endif
+static unsigned long ledUntilMs = 0;
+static inline void ledOff(){ digitalWrite(LED_BUILTIN, LOW); }
+static inline void ledPulseMs(uint16_t ms){
+  digitalWrite(LED_BUILTIN, HIGH);
+  ledUntilMs = millis() + ms;
+}
+static inline void ledService(){
+  if(ledUntilMs && (long)(millis()-ledUntilMs)>=0){ ledUntilMs=0; ledOff(); }
 }
 
-function soundReload()       { playTone({ freqs:[880,660,440],  dur:0.10, type:"square",   vol:0.12 }); }
-function soundTrailOn()      { playTone({ freqs:[440,550,660],  dur:0.10, type:"sine",     vol:0.16 }); }
-function soundTrailOff()     { playTone({ freqs:[330,220],      dur:0.12, type:"triangle", vol:0.14 }); }
-function soundInfoOpen()     { playTone({ freqs:[523,659,784],  dur:0.13, type:"sine",     vol:0.15 }); }
-function soundInfoClose()    { playTone({ freqs:[392,330],      dur:0.09, type:"sine",     vol:0.13 }); }
-function soundBusPopup()     { playTone({ freqs:[700,700],      dur:0.07, type:"square",   vol:0.10 }); }
-function soundStopPopup()    { playTone({ freqs:[1046,880],     dur:0.08, type:"triangle", vol:0.12 }); }
-function soundSolicitar()    { playTone({ freqs:[523,784,1046], dur:0.11, type:"sine",     vol:0.17 }); }
-function soundDibujarOn()    { playTone({ freqs:[659,784,988],  dur:0.09, type:"sine",     vol:0.15 }); }
-function soundDibujarOff()   { playTone({ freqs:[500,350],      dur:0.11, type:"sawtooth", vol:0.11 }); }
-function soundDibujarPlace() { playTone({ freqs:[1200,900,600], dur:0.07, type:"triangle", vol:0.14 }); }
-function soundBlocked()      { playTone({ freqs:[220,180],      dur:0.18, type:"sawtooth", vol:0.13 }); }
-
-function soundBusMoving() {
-  try {
-    const ctx=getACtx(), osc=ctx.createOscillator(), gain=ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination); osc.type="sawtooth";
-    osc.frequency.setValueAtTime(200,ctx.currentTime);
-    osc.frequency.linearRampToValueAtTime(500,ctx.currentTime+0.18);
-    gain.gain.setValueAtTime(0.10,ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.22);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime+0.25);
-  } catch(e) {}
-}
-function soundBusStopped() {
-  try {
-    const ctx=getACtx(), osc=ctx.createOscillator(), gain=ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination); osc.type="sine";
-    osc.frequency.setValueAtTime(400,ctx.currentTime);
-    osc.frequency.linearRampToValueAtTime(150,ctx.currentTime+0.20);
-    gain.gain.setValueAtTime(0.10,ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.22);
-    osc.start(ctx.currentTime); osc.stop(ctx.currentTime+0.25);
-  } catch(e) {}
+// =====================================================
+//                  FUNCIONES MATEMÁTICAS
+// =====================================================
+double haversineMeters(double lat1, double lon1, double lat2, double lon2) {
+  const double R = 6371000.0, toRad = 0.017453292519943295;
+  double dLat = (lat2 - lat1) * toRad;
+  double dLon = (lon2 - lon1) * toRad;
+  double a = sin(dLat/2)*sin(dLat/2) + cos(lat1*toRad)*cos(lat2*toRad)*sin(dLon/2)*sin(dLon/2);
+  return 2.0 * R * atan2(sqrt(a), sqrt(1.0 - a));
 }
 
-// ─── Sonido palpitante único por solicitud ────────────────────
-const SOLICITUD_FREQ_BASE = [
-  {freq:320,type:"sine"},{freq:440,type:"triangle"},{freq:260,type:"sine"},
-  {freq:550,type:"triangle"},{freq:370,type:"sine"},{freq:490,type:"triangle"},
-  {freq:220,type:"sine"},{freq:600,type:"triangle"},{freq:300,type:"sine"},
-  {freq:420,type:"triangle"},{freq:480,type:"sine"},{freq:340,type:"triangle"},
-  {freq:530,type:"sine"},{freq:280,type:"triangle"},{freq:460,type:"sine"},
-  {freq:390,type:"triangle"},{freq:510,type:"sine"},{freq:240,type:"triangle"},
-  {freq:570,type:"sine"},{freq:350,type:"triangle"}
-];
+String getEcuadorTimeString() {
+  struct tm t;
+  if(getLocalTime(&t)){
+    char b[30];
+    strftime(b, sizeof(b), "%Y-%m-%d %H:%M:%S", &t);
+    return String(b);
+  }
+  return "NTP_NO_TIME";
+}
 
-function crearSonidoSolicitud(freqProfile) {
-  try {
-    const ctx=getACtx(), osc=ctx.createOscillator(), gain=ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.type=freqProfile.type;
-    osc.frequency.setValueAtTime(freqProfile.freq, ctx.currentTime);
-    gain.gain.setValueAtTime(0.001, ctx.currentTime);
-    osc.start(ctx.currentTime);
-    const PERIOD=1.4; let running=true, nextBeat=ctx.currentTime;
-    function schedulePulses() {
-      if(!running) return;
-      while(nextBeat < ctx.currentTime+3.0) {
-        const t=nextBeat;
-        gain.gain.setValueAtTime(0.001,t);
-        gain.gain.linearRampToValueAtTime(0.07,t+0.25);
-        gain.gain.linearRampToValueAtTime(0.001,t+PERIOD*0.7);
-        nextBeat+=PERIOD;
+static inline bool isGoodFix(bool validLoc, int sats, double hdop) {
+  return validLoc && sats >= MIN_SATS_FOR_GOOD_FIX && hdop >= 0 && hdop <= MAX_HDOP_FOR_GOOD_FIX;
+}
+
+void applyEMA(double lat, double lon, double alpha) {
+  if(!hasFiltered){ fLat = lat; fLon = lon; hasFiltered = true; return; }
+  fLat = alpha * lat + (1.0 - alpha) * fLat;
+  fLon = alpha * lon + (1.0 - alpha) * fLon;
+}
+
+double getAdaptiveAlpha(bool goodFix, double speedKmh, double jumpM) {
+  if(!goodFix) return EMA_ALPHA_BAD;
+  if(speedKmh < 0) speedKmh = 30.0;
+  if(speedKmh <= STOP_SPEED_KMH){
+    if(jumpM > STOP_MIN_JUMP_M) return 0.12;
+    return EMA_ALPHA_STOP;
+  }
+  if(speedKmh <= 15.0) return EMA_ALPHA_SLOW;
+  if(speedKmh <= 60.0) return EMA_ALPHA_CITY;
+  return EMA_ALPHA_FAST;
+}
+
+double getOutputLat(double rawLat){ return anchorActive ? anchorLat : (hasFiltered ? fLat : rawLat); }
+double getOutputLon(double rawLon){ return anchorActive ? anchorLon : (hasFiltered ? fLon : rawLon); }
+
+void updateAnchor(double speed, double filtLat, double filtLon) {
+  if(speed <= STOP_SPEED_KMH){
+    stopCycleCount++;
+    if(!anchorActive && stopCycleCount >= ANCHOR_CONFIRM_CYCLES){
+      anchorActive = true;
+      anchorLat = filtLat;
+      anchorLon = filtLon;
+      Serial.println("⚓ Ancla activada — posición congelada.");
+    }
+  } else {
+    if(anchorActive){
+      double dist = haversineMeters(anchorLat, anchorLon, filtLat, filtLon);
+      if(dist >= ANCHOR_RELEASE_M){
+        anchorActive = false;
+        stopCycleCount = 0;
+        Serial.println("⚓ Ancla liberada — vehículo en movimiento.");
       }
-      if(running) setTimeout(schedulePulses,1800);
-    }
-    schedulePulses();
-    return function stop() {
-      running=false;
-      try {
-        gain.gain.cancelScheduledValues(ctx.currentTime);
-        gain.gain.setValueAtTime(gain.gain.value,ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.15);
-        osc.stop(ctx.currentTime+0.18);
-      } catch(e) {}
-    };
-  } catch(e) { return ()=>{}; }
-}
-
-// ─── Toast ────────────────────────────────────────────────────
-let _toastTimer = null;
-function showToast(msg, durationMs=4000) {
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.style.display = "block";
-  if(_toastTimer) clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => { el.style.display="none"; }, durationMs);
-}
-
-// ─── Identificador de usuario ─────────────────────────────────
-function getUserId() {
-  let uid = localStorage.getItem("rbo_uid");
-  if(!uid) {
-    uid = "u_" + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
-    localStorage.setItem("rbo_uid", uid);
+    } else stopCycleCount = 0;
   }
-  return uid;
-}
-const MY_UID = getUserId();
-const LIMIT_MS = 12 * 60 * 60 * 1000;
-
-function getMyLastAt(db) {
-  return new Promise(resolve => {
-    onValue(ref(db, `UserLimits/${MY_UID}/lastAt`), snap => {
-      resolve(snap.val() || 0);
-    }, { onlyOnce: true });
-  });
-}
-async function canUserSolicitar(db) {
-  const lastAt = await getMyLastAt(db);
-  return (Date.now() - lastAt) >= LIMIT_MS;
-}
-async function registrarSolicitudUsuario(db) {
-  await set(ref(db, `UserLimits/${MY_UID}/lastAt`), Date.now());
-}
-async function tiempoRestante(db) {
-  const lastAt = await getMyLastAt(db);
-  const diff = LIMIT_MS - (Date.now() - lastAt);
-  return diff > 0 ? diff : 0;
-}
-function formatHMS(ms) {
-  if(ms <= 0) return "0h 0m";
-  const totalSec = Math.ceil(ms/1000);
-  const h = Math.floor(totalSec/3600);
-  const m = Math.floor((totalSec%3600)/60);
-  const s = totalSec%60;
-  if(h>0) return `${h}h ${m}m`;
-  if(m>0) return `${m}m ${s}s`;
-  return `${s}s`;
 }
 
-// ─── Firebase ─────────────────────────────────────────────────
-const firebaseConfig = {
-  apiKey:            "AIzaSyCZP36RLL7SEWvyLApKKFJzjjssNRe-_LE",
-  authDomain:        "recolectorbasuraotavalo.firebaseapp.com",
-  databaseURL:       "https://recolectorbasuraotavalo-default-rtdb.firebaseio.com",
-  projectId:         "recolectorbasuraotavalo",
-  storageBucket:     "recolectorbasuraotavalo.firebasestorage.app",
-  messagingSenderId: "900064792007",
-  appId:             "1:900064792007:web:c88637de46577aed87dde2"
-};
-const db = getDatabase(initializeApp(firebaseConfig));
-
-// ─── Mapa ─────────────────────────────────────────────────────
-const map = L.map("map", {
-  zoomControl:false, tap:true, tapTolerance:15
-}).setView([0.23299010950077462,-78.26316758796887],14);
-
-L.control.zoom({position:"bottomright"}).addTo(map);
-map.attributionControl.setPrefix("Red Otavalo Telecomunicaciones");
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
-  maxZoom:19, detectRetina:true
-}).addTo(map);
-
-map.on("popupopen", e =>
-  setTimeout(()=>{ if(map.hasLayer(e.popup)) map.closePopup(e.popup); },60000)
-);
-
-// ─── Recargar ─────────────────────────────────────────────────
-document.getElementById("btnReload").addEventListener("click", async () => {
-  soundReload();
-  try { await set(ref(db,"Control/restart_ts"), Date.now()); } catch(e) {}
-  setTimeout(()=>location.reload(), 200);
-});
-
-// ─── Info modal ───────────────────────────────────────────────
-const infoOverlay = document.getElementById("infoOverlay");
-const infoMovilEl = document.getElementById("infoMovil");
-const infoFijoEl  = document.getElementById("infoFijo");
-let infoOpen=false, latestFijoData=null, latestBusData=null;
-
-const safeNum    = (v,d=6) => { const n=Number(v); return isFinite(n)?n.toFixed(d):"--"; };
-const safeVal    = v => (v===undefined||v===null||v===""||
-                         (typeof v==="number"&&!isFinite(v)))?"--":String(v);
-const makeLines  = a => a.map(t=>`<div class="infoLine">${t}</div>`).join("");
-const boolToSiNo = v => {
-  if(v===true||v==="true"||v==="TRUE"||v==="True")    return "Si";
-  if(v===false||v==="false"||v==="FALSE"||v==="False") return "No";
-  return "--";
-};
-
-function renderInfo() {
-  const m=latestBusData||{}, f=latestFijoData||{};
-  const movilVel=(m.speed_kmh!==undefined&&isFinite(Number(m.speed_kmh)))
-    ?`${Number(m.speed_kmh).toFixed(1)} km/h`:"--";
-  infoMovilEl.innerHTML=makeLines([
-    `Hora: ${safeVal(m.hora_ecuador)}`,
-    `Latitud: ${m.lat!==undefined?safeNum(m.lat,6):"--"}`,
-    `Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
-    `Satélites: ${safeVal(m.satelites)}`,
-    `Velocidad: ${movilVel}`,
-    `Precisión: ${safeVal(m.hdop)}`
-  ]);
-  let fijoFlag="--";
-  if(f.fijo_ok!==undefined) fijoFlag=boolToSiNo(f.fijo_ok);
-  else if(f.fix!==undefined) fijoFlag=boolToSiNo(f.fix);
-  infoFijoEl.innerHTML=makeLines([
-    `Hora: ${safeVal(f.hora_ecuador)}`,
-    `Latitud: ${f.lat!==undefined?safeNum(f.lat,6):"--"}`,
-    `Longitud: ${f.lon!==undefined?safeNum(f.lon,6):"--"}`,
-    `Satélites: ${safeVal(f.satelites)}`,
-    `Fijo: ${fijoFlag}`,
-    `Precisión: ${safeVal(f.hdop)}`
-  ]);
+// =====================================================
+//                      CONECTIVIDAD
+// =====================================================
+static inline bool connectWiFiBlocking(uint32_t timeoutMs) {
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
+  WiFi.disconnect(true);
+  delay(120);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  unsigned long start = millis();
+  while(WiFi.status() != WL_CONNECTED && millis()-start < timeoutMs) delay(120);
+  return WiFi.status() == WL_CONNECTED;
 }
-function openInfo()  { soundInfoOpen();  infoOpen=true;  renderInfo(); infoOverlay.style.display="flex";  infoOverlay.setAttribute("aria-hidden","false"); }
-function closeInfo() { soundInfoClose(); infoOpen=false; infoOverlay.style.display="none"; infoOverlay.setAttribute("aria-hidden","true"); }
 
-document.getElementById("btnInfo").addEventListener("click",  e=>{ e.preventDefault(); openInfo(); });
-document.getElementById("infoClose").addEventListener("click", closeInfo);
-infoOverlay.addEventListener("click", e=>{ if(e.target===infoOverlay) closeInfo(); });
-window.addEventListener("keydown", e=>{ if(e.key==="Escape"&&infoOpen) closeInfo(); });
-
-// ─── Iconos bus/parada ────────────────────────────────────────
-const stopIcon = L.divIcon({
-  className:"", html:'<span class="stop-icon">🗑️</span>',
-  iconSize:[36,36], iconAnchor:[18,18]
-});
-const makeBusIconHtml = m =>
-  `<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚚</span></div>`;
-
-let busIsMoving=false;
-let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[30,30],iconAnchor:[15,15]});
-const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
-
-function buildBusPopupHtml(speedKmh,isMoving) {
-  return `<div class="popup-wrap">
-    <span class="popup-title">🚛 Recolector</span>
-    <span class="popup-line">Velocidad: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
-    <span class="popup-line">Estado: <span class="popup-val ${isMoving?"moving":"stopped"}">${isMoving?"Movimiento":"Detenido"}</span></span>
-  </div>`;
+void connectWiFi(uint32_t timeoutMs = 20000) {
+  bool ok = connectWiFiBlocking(timeoutMs);
+  Serial.println();
+  if(ok){ Serial.print("📶 WiFi Conectado — IP: "); Serial.println(WiFi.localIP()); }
+  else Serial.println("⚠️ Sin WiFi — datos en modo local.");
 }
-busMarker.bindPopup(buildBusPopupHtml(0,false));
-busMarker.on("popupopen",()=>{ soundBusPopup(); pauseFollowFor(); });
 
-// ─── Auto-follow ──────────────────────────────────────────────
-const FOLLOW_RESUME_MS=60000;
-let followEnabled=true, followTimer=null, lastLatLng=null;
-function pauseFollowFor(ms=FOLLOW_RESUME_MS) {
-  followEnabled=false;
-  if(followTimer) clearTimeout(followTimer);
-  followTimer=setTimeout(()=>{
-    followEnabled=true;
-    if(lastLatLng) map.setView(lastLatLng,map.getZoom(),{animate:true,duration:0.6});
-  },ms);
+static unsigned long lastWifiAttemptMs = 0;
+const unsigned long WIFI_RETRY_MS = 3000;
+static inline void forceWiFi() {
+  if(WiFi.status() == WL_CONNECTED) return;
+  unsigned long now = millis();
+  if(now - lastWifiAttemptMs < WIFI_RETRY_MS) return;
+  lastWifiAttemptMs = now;
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 }
-map.on("zoomstart",()=>pauseFollowFor());
-map.on("zoom",     ()=>pauseFollowFor());
-map.on("dragstart",()=>{ if(!drawMode) pauseFollowFor(); });
-map.on("movestart",()=>pauseFollowFor());
 
-// ─── Ruta verde ───────────────────────────────────────────────
-const trailLatLngs=[], MAX_POINTS=5000;
-const trailLine=L.polyline(trailLatLngs,{color:"green",weight:5,opacity:0.9}).addTo(map);
-const trailHead=L.polyline([],          {color:"green",weight:5,opacity:0.9}).addTo(map);
-let trailVisible=true;
+void setupNTP() {
+  configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org");
+  Serial.println("⌛ NTP — Hora Ecuador (UTC-5) sincronizada.");
+}
 
-document.getElementById("btnToggleTrail").addEventListener("click",e=>{
-  trailVisible=!trailVisible;
-  if(trailVisible){
-    soundTrailOn();
-    trailLine.setLatLngs(trailLatLngs);
-    if(!map.hasLayer(trailLine)) trailLine.addTo(map);
-    if(!map.hasLayer(trailHead)) trailHead.addTo(map);
-    e.target.textContent="🟢 Recorrido: Si";
-  } else {
-    soundTrailOff();
-    if(map.hasLayer(trailLine)) map.removeLayer(trailLine);
-    if(map.hasLayer(trailHead)) map.removeLayer(trailHead);
-    e.target.textContent="⚫ Recorrido: No";
+void setupFirebase() {
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+  config.token_status_callback = tokenStatusCallback;
+  Firebase.reconnectWiFi(true);
+  fbdo.setResponseSize(4096);
+  Serial.println("🔥 Iniciando Firebase...");
+  if(Firebase.signUp(&config, &auth, "", "")) Serial.println("✅ Firebase conectado.");
+  else { Serial.print("❌ Firebase: "); Serial.println(config.signer.signupError.message.c_str()); }
+  Firebase.begin(&config, &auth);
+}
+
+static inline void forceFirebase() { if(WiFi.status()==WL_CONNECTED && !Firebase.ready()) Firebase.begin(&config, &auth); }
+static inline bool firebaseReady() { return Firebase.ready(); }
+
+// =====================================================
+//      CONFIGURACIÓN U-BLOX NEO-6M — MÁXIMO RENDIMIENTO
+// =====================================================
+void ubxChecksum(const uint8_t* p, uint16_t len, uint8_t &a, uint8_t &b) {
+  a = 0; b = 0;
+  for(uint16_t i=0; i<len; i++){ a = a + p[i]; b = b + a; }
+}
+
+void sendUBX(const uint8_t* msg, uint16_t len) {
+  uint8_t a,b; ubxChecksum(msg,len,a,b);
+  GPS_Serial.write(0xB5); GPS_Serial.write(0x62);
+  GPS_Serial.write(msg, len);
+  GPS_Serial.write(a); GPS_Serial.write(b);
+  GPS_Serial.flush();
+  delay(50);
+}
+
+void setNMEAMessageRate(uint8_t id, uint8_t rate) {
+  uint8_t msg[] = {0x06,0x01,0x03,0x00,0xF0,id,rate};
+  sendUBX(msg, sizeof(msg));
+}
+
+void setUbloxBaud(uint32_t baud) {
+  uint8_t msg[] = {
+    0x06,0x00,0x14,0x00, 0x01,0x00,0x00,0x00, 0xD0,0x08,0x00,0x00,
+    (uint8_t)(baud&0xFF), (uint8_t)((baud>>8)&0xFF),
+    (uint8_t)((baud>>16)&0xFF), (uint8_t)((baud>>24)&0xFF),
+    0x07,0x00, 0x03,0x00, 0x00,0x00, 0x00,0x00
+  };
+  sendUBX(msg, sizeof(msg));
+}
+
+// 🚗 Modo Automotriz — filtro optimizado para vehículos
+void setDynamicModelAutomotive() {
+  uint8_t msg[] = {
+    0x06,0x24,0x24,0x00,
+    0x03,0x00,        // 3 = Automotriz ✅
+    0x04,0x03,
+    0,0,0,0, 0,0,0,0,
+    0x05,0x00, 0xFA,0x00, 0xFA,0x00, 0x64,0x00, 0x2C,0x01,
+    0,0,0,0, 0,0, 0,0, 0, 0,0,0,0,0
+  };
+  sendUBX(msg, sizeof(msg));
+  Serial.println("🚗 Modo Automotriz activado.");
+}
+
+// 🛰️ SBAS — corrección diferencial satelital
+void enableSBAS() {
+  uint8_t msg[] = {
+    0x06,0x16,0x08,0x00,
+    0x01,0x03,0x03,0x00,   // SBAS activado ✅
+    0,0,0,0
+  };
+  sendUBX(msg, sizeof(msg));
+  Serial.println("🛰️ SBAS activado — corrección diferencial.");
+}
+
+void setupUbloxHighPrecision() {
+  Serial.println("🛰️ Optimizando NEO-6M al máximo...");
+  
+  // 5 Hz = 200ms entre lecturas (límite del NEO-6M)
+  uint8_t rate5Hz[] = {0x06,0x08,0x06,0x00, 0xC8,0x00, 0x01,0x00, 0x01,0x00};
+  sendUBX(rate5Hz, sizeof(rate5Hz));
+  Serial.println("✅ Tasa: 5 Hz (máxima).");
+  
+  // Configuración de navegación
+  uint8_t nav[] = {
+    0x06,0x24,0x24,0x00, 0x03,0x00, 0x04,0x03,
+    0,0,0,0, 0,0,0,0,
+    0x05,0x00, 0xFA,0x00, 0xFA,0x00, 0x64,0x00, 0x2C,0x01,
+    0,0,0,0, 0,0, 0,0, 0, 0,0,0,0,0
+  };
+  sendUBX(nav, sizeof(nav));
+  
+  setDynamicModelAutomotive();
+  enableSBAS();
+  
+  // Recepción continua
+  uint8_t rxmContinuous[] = {0x06,0x11,0x02,0x00, 0x00,0x00};
+  sendUBX(rxmContinuous, sizeof(rxmContinuous));
+  
+  // Solo mensajes esenciales → menos ancho de banda 📉
+  setNMEAMessageRate(0x00, 1);  // GGA → posición, satélites, HDOP, ALTURA ✅
+  setNMEAMessageRate(0x04, 1);  // RMC → hora, velocidad, rumbo ✅
+  setNMEAMessageRate(0x01, 0);  // GLL ❌
+  setNMEAMessageRate(0x02, 0);  // GSA ❌
+  setNMEAMessageRate(0x03, 0);  // GSV ❌
+  setNMEAMessageRate(0x05, 0);  // VTG ❌
+  
+  Serial.println("✅ GPS configurado al máximo rendimiento.");
+}
+
+void setupGPSRobusto() {
+  GPS_Serial.setRxBufferSize(4096);
+  GPS_Serial.begin(GPS_BAUD_BOOT, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  delay(300);
+  
+  Serial.print("🛰️ Cambiando velocidad a "); Serial.print(GPS_BAUD_RUN); Serial.println(" baud...");
+  setUbloxBaud(GPS_BAUD_RUN);
+  delay(150);
+  
+  GPS_Serial.end(); delay(100);
+  GPS_Serial.begin(GPS_BAUD_RUN, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  delay(300);
+  
+  setupUbloxHighPrecision();
+}
+
+// Tarea dedicada al GPS en núcleo secundario → sin bloqueos
+TaskHandle_t gpsTaskHandle = nullptr;
+void gpsTask(void* pv) {
+  for(;;){
+    while(GPS_Serial.available()) gps.encode(GPS_Serial.read());
+    vTaskDelay(1);
   }
-});
-
-// ─── Util ─────────────────────────────────────────────────────
-function haversineMeters(lat1,lon1,lat2,lon2) {
-  const R=6371000,toRad=x=>x*Math.PI/180;
-  const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
-  const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-  return 2*R*Math.asin(Math.sqrt(a));
-}
-function formatDist(m) {
-  if(!isFinite(m)||m<=0) return "--";
-  return (m<1000)?`${m.toFixed(0)} m`:`${(m/1000).toFixed(2)} km`;
-}
-function formatETA(sec) {
-  if(!isFinite(sec)||sec<=0) return "--";
-  const m=Math.round(sec/60);
-  if(m<1)  return "< 1 min";
-  if(m<60) return `${m} min`;
-  return `${Math.floor(m/60)} h ${m%60} min`;
-}
-const ema  = (p,x,a) => p==null?x:a*x+(1-a)*p;
-const ema2 = (p,x,a) => !p?x:[ema(p[0],x[0],a),ema(p[1],x[1],a)];
-
-// ─── ETA ──────────────────────────────────────────────────────
-const ROUTE_FACTOR=1.45,ETA_BIAS_SEC=45,DEFAULT_SPEED_KMH=4.5;
-const SPEED_ALPHA=0.35,MIN_USABLE_SPEED_KMH=2.0,MAX_REASONABLE_SPEED_KMH=55;
-let speedSmoothed=null,lastGoodSpeed=null;
-
-function pickSpeedKmh(rawSpeedKmh) {
-  let s=Number(rawSpeedKmh||0);
-  if(!isFinite(s)||s<0) s=0;
-  if(s>MAX_REASONABLE_SPEED_KMH) s=MAX_REASONABLE_SPEED_KMH;
-  speedSmoothed=ema(speedSmoothed,s,SPEED_ALPHA);
-  if(isFinite(speedSmoothed)&&speedSmoothed>=MIN_USABLE_SPEED_KMH) lastGoodSpeed=speedSmoothed;
-  if(isFinite(speedSmoothed)&&speedSmoothed>=MIN_USABLE_SPEED_KMH) return speedSmoothed;
-  if(isFinite(lastGoodSpeed)&&lastGoodSpeed>=MIN_USABLE_SPEED_KMH) return lastGoodSpeed;
-  return DEFAULT_SPEED_KMH;
-}
-function calcEtaSeconds(distStraightM,usedSpeedKmh) {
-  return (distStraightM*ROUTE_FACTOR/Math.max(usedSpeedKmh/3.6,0.1))+ETA_BIAS_SEC;
 }
 
-// ─── Snap a calle ─────────────────────────────────────────────
-const SNAP_MIN_MOVE_M=10,SNAP_MAX_ERR_M=35,SNAP_TTL_MS=15000;
-const snapCache=new Map();
-let lastSnapRaw=null,lastSnapped=null,snapPending=false;
-const snapKey=(lat,lon)=>`${lat.toFixed(5)},${lon.toFixed(5)}`;
+// =====================================================
+//               REINICIO REMOTO DESDE FIREBASE
+// =====================================================
+static const char* RESTART_PATH = "/Control/Restart_ts";
+unsigned long lastRestartCheckMs = 0;
+const unsigned long RESTART_CHECK_MS = 5000;
+uint64_t lastRestartTsSeen = 0;
 
-async function snapToRoad(lat,lon) {
-  const k=snapKey(lat,lon);
-  if(snapCache.has(k)) return snapCache.get(k);
-  const r=await fetch(`https://router.project-osrm.org/nearest/v1/driving/${lon},${lat}?number=1`);
-  if(!r.ok) throw 0;
-  const j=await r.json();
-  const loc=j?.waypoints?.[0]?.location;
-  if(!loc) throw 0;
-  const pt=[loc[1],loc[0]];
-  snapCache.set(k,pt); return pt;
-}
-function maybeRequestSnap(rawLat,rawLon) {
-  if(snapPending) return;
-  if(!lastSnapRaw) lastSnapRaw=[rawLat,rawLon];
-  if(haversineMeters(lastSnapRaw[0],lastSnapRaw[1],rawLat,rawLon)<SNAP_MIN_MOVE_M) return;
-  snapPending=true;
-  const rLat=rawLat,rLon=rawLon;
-  lastSnapRaw=[rawLat,rawLon];
-  snapToRoad(rLat,rLon).then(pt=>{
-    if(haversineMeters(rLat,rLon,pt[0],pt[1])<=SNAP_MAX_ERR_M) lastSnapped={pt,t:Date.now()};
-  }).catch(()=>{}).finally(()=>{ snapPending=false; });
-}
-function pickRoadPoint(rawLat,rawLon) {
-  maybeRequestSnap(rawLat,rawLon);
-  if(lastSnapped&&(Date.now()-lastSnapped.t)<=SNAP_TTL_MS) {
-    if(haversineMeters(rawLat,rawLon,lastSnapped.pt[0],lastSnapped.pt[1])<=SNAP_MAX_ERR_M)
-      return lastSnapped.pt;
+static inline void initRestartWatcher() {
+  if(WiFi.status()==WL_CONNECTED && firebaseReady()){
+    if(Firebase.RTDB.getInt(&fbdo, RESTART_PATH))
+      lastRestartTsSeen = (uint64_t)fbdo.intData();
   }
-  return [rawLat,rawLon];
 }
 
-// ─── Filtro / ruta ────────────────────────────────────────────
-const SMOOTH_ALPHA_POS = 0.40;
-// ✅ CORRECCIÓN CLAVE: umbral mínimo de distancia para agregar punto al trail
-const MIN_ADD_DIST_M   = 12;   // era 3 — evita garabatos en reposo
-const MAX_JUMP_DRAW_M  = 150;  // era 200
-
-// ✅ NUEVO: umbral de velocidad para considerar el vehículo detenido (JS)
-const STOPPED_SPEED_KMH   = 3.0;
-// ✅ NUEVO: cuántos ciclos consecutivos quieto antes de congelar el trail
-const STOPPED_FREEZE_CYCLES = 3;
-let   stoppedCycleCount     = 0;
-let   trailFrozen           = false;  // cuando es true, no se agregan puntos
-
-let lastStableDraw=null,lastSmoothed=null;
-
-function pushTrail(latLng) {
-  trailLatLngs.push(latLng);
-  if(trailLatLngs.length>MAX_POINTS) trailLatLngs.shift();
-  if(trailVisible) trailLine.setLatLngs(trailLatLngs);
-}
-function stablePoint(lat,lon) {
-  const p=[lat,lon];
-  if(!lastStableDraw){lastStableDraw=p;return p;}
-  if(haversineMeters(lastStableDraw[0],lastStableDraw[1],p[0],p[1])>MAX_JUMP_DRAW_M) return lastStableDraw;
-  lastStableDraw=p; return p;
-}
-
-// ✅ FUNCIÓN CORREGIDA: congela trail cuando está detenido
-function updateGreenTrailForced(rawLat, rawLon, rawSpeedKmh) {
-  const speedKmh = Number(rawSpeedKmh || 0);
-
-  // Detectar si está detenido
-  if (speedKmh < STOPPED_SPEED_KMH) {
-    stoppedCycleCount = Math.min(stoppedCycleCount + 1, STOPPED_FREEZE_CYCLES + 1);
-  } else {
-    // Vehículo en movimiento — descongelar trail
-    stoppedCycleCount = 0;
-    trailFrozen = false;
-  }
-
-  // Activar congelación después de N ciclos quieto
-  if (stoppedCycleCount >= STOPPED_FREEZE_CYCLES) {
-    trailFrozen = true;
-  }
-
-  // Si está congelado: solo actualiza la cabeza visual pero NO agrega puntos
-  if (trailFrozen) {
-    // Mantener la "cabecita" exactamente en el último punto del trail
-    // (sin dibujar el segmento de ruido)
-    if (trailLatLngs.length > 0 && trailVisible) {
-      const last = trailLatLngs[trailLatLngs.length - 1];
-      trailHead.setLatLngs([last, last]); // punto en sí mismo = sin línea
-    }
-    return;
-  }
-
-  // Vehículo en movimiento: comportamiento normal con filtros
-  const p0 = stablePoint(rawLat, rawLon);
-  const roadPt = pickRoadPoint(p0[0], p0[1]);
-  lastSmoothed = ema2(lastSmoothed, roadPt, SMOOTH_ALPHA_POS);
-  const p = lastSmoothed;
-
-  if (trailLatLngs.length === 0) {
-    pushTrail(p);
-  } else {
-    const last = trailLatLngs[trailLatLngs.length - 1];
-    // ✅ Solo agrega punto si se movió más de MIN_ADD_DIST_M
-    if (haversineMeters(last[0], last[1], p[0], p[1]) >= MIN_ADD_DIST_M) {
-      pushTrail(p);
+static inline void checkRemoteRestart() {
+  if(WiFi.status()!=WL_CONNECTED || !firebaseReady()) return;
+  if(millis()-lastRestartCheckMs < RESTART_CHECK_MS) return;
+  lastRestartCheckMs = millis();
+  if(Firebase.RTDB.getInt(&fbdo, RESTART_PATH)){
+    uint64_t ts = (uint64_t)fbdo.intData();
+    if(ts > 0 && ts != lastRestartTsSeen){
+      lastRestartTsSeen = ts;
+      Serial.println("🔁 Reinicio remoto activado.");
+      delay(200);
+      ESP.restart();
     }
   }
-  if (trailVisible) trailHead.setLatLngs([p, [rawLat, rawLon]]);
 }
 
-// ─── Paradas / contenedores ───────────────────────────────────
-const stops = [
-  {id:"p1",  name:"Contenedor 1",  lat:0.2308,   lon:-78.25777},
-  {id:"p2",  name:"Contenedor 2",  lat:0.22938,  lon:-78.25877},
-  {id:"p3",  name:"Contenedor 3",  lat:0.23075,  lon:-78.26084},
-  {id:"p4",  name:"Contenedor 4",  lat:0.23180,  lon:-78.26224},
-  {id:"p5",  name:"Contenedor 5",  lat:0.22984,  lon:-78.26385},
-  {id:"p6",  name:"Contenedor 6",  lat:0.22785,  lon:-78.26531},
-  {id:"p7",  name:"Contenedor 7",  lat:0.22665,  lon:-78.26677},
-  {id:"p8",  name:"Contenedor 8",  lat:0.22999,  lon:-78.26621},
-  {id:"p9",  name:"Contenedor 9",  lat:0.23139,  lon:-78.26623},
-  {id:"p10", name:"Contenedor 10", lat:0.23271,  lon:-78.26802},
-  {id:"p11", name:"Contenedor 11", lat:0.23999,  lon:-78.28425},
-  {id:"p12", name:"Contenedor 12", lat:0.23828,  lon:-78.2876},
-  {id:"p13", name:"Contenedor 13", lat:0.23716,  lon:-78.28993},
-  {id:"p14", name:"Contenedor 14", lat:0.23643,  lon:-78.29141},
-  {id:"p15", name:"Contenedor 15", lat:0.23563,  lon:-78.29283},
-  {id:"p16", name:"Contenedor 16", lat:0.23510,  lon:-78.29124},
-  {id:"p17", name:"Contenedor 17", lat:0.23576,  lon:-78.29013},
-  {id:"p18", name:"Contenedor 18", lat:0.23641,  lon:-78.28886},
-  {id:"p19", name:"Contenedor 19", lat:0.23688,  lon:-78.28772},
-  {id:"p20", name:"Contenedor 20", lat:0.23796,  lon:-78.28809},
-  {id:"p21", name:"Contenedor 21", lat:0.23866,  lon:-78.28675},
-  {id:"p22", name:"Contenedor 22", lat:0.23993,  lon:-78.28424},
-  {id:"p23", name:"Contenedor 23", lat:0.2339,   lon:-78.26907},
-  {id:"p24", name:"Contenedor 24", lat:0.23162,  lon:-78.26659},
-  {id:"p25", name:"Contenedor 25", lat:0.23054,  lon:-78.2644},
-  {id:"p26", name:"Contenedor 26", lat:0.23234,  lon:-78.26315},
-  {id:"p27", name:"Contenedor 27", lat:0.23144,  lon:-78.26194},
-  {id:"p28", name:"Contenedor 28", lat:0.2294,   lon:-78.25925},
-  {id:"p29", name:"Contenedor 29", lat:0.23084,  lon:-78.25798}
-];
-const stopMarkers=new Map();
-let activeStopId=null;
-
-function buildStopPopupHtml(name, etaTxt="--", distTxt="--", speedTxt="--") {
-  return `<div class="stop-popup-wrap">
-    <span class="stop-popup-title">${name}</span>
-    <span class="stop-popup-line">Llegada: ${etaTxt}</span>
-    <span class="stop-popup-line">Distancia: ${distTxt}</span>
-    <span class="stop-popup-line">Velocidad: ${speedTxt}</span>
-  </div>`;
+// =====================================================
+//                      SETUP PRINCIPAL
+// =====================================================
+void setup() {
+  Serial.begin(115200);
+  delay(300);
+  pinMode(LED_BUILTIN, OUTPUT); ledOff();
+  
+  Serial.println("\n=== ESP32 + NEO-6M MÁXIMA PRECISIÓN ===");
+  Serial.println("📍 GPIO16=RX, GPIO17=TX conectados");
+  
+  setupGPSRobusto();
+  Serial.println("📡 GPS listo — esperando satélites...");
+  
+  xTaskCreatePinnedToCore(gpsTask, "gpsTask", 4096, nullptr, 2, &gpsTaskHandle, 0);
+  
+  connectWiFi();
+  setupNTP();
+  setupFirebase();
+  delay(300);
+  initRestartWatcher();
+  
+  lastSend = millis();
+  Serial.println("🚀 Sistema listo — transmitiendo a Firebase...\n");
 }
 
-function buildSolicitudPopupHtml(fbKey, esMio, color, etaTxt="--", distTxt="--", speedTxt="--") {
-  const cancelBtn = esMio
-    ? `<span class="stop-popup-line" style="text-align:center;display:block;margin-top:4px;">
-         <button onclick="window._cancelarSolicitud('${fbKey}')"
-           style="padding:2px 10px;border:1px solid #bbb;border-radius:6px;
-                  background:#fff;cursor:pointer;font-size:11px;font-family:Arial,sans-serif;">
-           Cancelar
-         </button>
-       </span>`
-    : `<span class="stop-popup-line" style="color:#888;font-size:10px;">Otro usuario</span>`;
-  return `<div class="stop-popup-wrap">
-    <span class="stop-popup-title">👋 Solicitud <span style="color:${color};">■</span></span>
-    <span class="stop-popup-line">Llegada: ${etaTxt}</span>
-    <span class="stop-popup-line">Distancia: ${distTxt}</span>
-    <span class="stop-popup-line">Velocidad: ${speedTxt}</span>
-    ${cancelBtn}
-  </div>`;
-}
-
-stops.forEach(s=>{
-  const m=L.marker([s.lat,s.lon],{icon:stopIcon}).addTo(map);
-  m.bindPopup(buildStopPopupHtml(s.name));
-  m.on("popupopen", ()=>{ soundStopPopup(); activeStopId=s.id; pauseFollowFor(); });
-  m.on("popupclose",()=>{ if(activeStopId===s.id) activeStopId=null; });
-  stopMarkers.set(s.id,m);
-});
-
-// ─── NodoFijo ─────────────────────────────────────────────────
-const NODO_FIJO_ID="NodoFijo";
-let nodoFijoMarker=null;
-let nodoFijoLast={dist_m:null,eta_s:null};
-
-function buildNodoFijoPopupHtml(speedKmh) {
-  const distTxt=(isFinite(nodoFijoLast.dist_m)&&nodoFijoLast.dist_m>=0)?formatDist(nodoFijoLast.dist_m):"--";
-  const etaTxt =(isFinite(nodoFijoLast.eta_s) &&nodoFijoLast.eta_s >0) ?formatETA(nodoFijoLast.eta_s) :"--";
-  return buildStopPopupHtml("🗑️ NodoFijo",etaTxt,distTxt,`${Number(speedKmh||0).toFixed(1)} km/h`);
-}
-function upsertNodoFijoMarker(lat,lon) {
-  if(!nodoFijoMarker) {
-    nodoFijoMarker=L.marker([lat,lon],{icon:stopIcon}).addTo(map);
-    nodoFijoMarker.bindPopup(buildNodoFijoPopupHtml(0));
-    nodoFijoMarker.on("popupopen", ()=>{ soundStopPopup(); activeStopId=NODO_FIJO_ID; pauseFollowFor(); });
-    nodoFijoMarker.on("popupclose",()=>{ if(activeStopId===NODO_FIJO_ID) activeStopId=null; });
-    stopMarkers.set(NODO_FIJO_ID,nodoFijoMarker);
-  } else nodoFijoMarker.setLatLng([lat,lon]);
-}
-
-// ─── Estado bus ───────────────────────────────────────────────
-function setBusMovingState(isMoving) {
-  if(busIsMoving===isMoving) return;
-  busIsMoving=isMoving;
-  if(isMoving) soundBusMoving(); else soundBusStopped();
-  busIcon=L.divIcon({className:"",html:makeBusIconHtml(busIsMoving),iconSize:[30,30],iconAnchor:[15,15]});
-  busMarker.setIcon(busIcon);
-  const el=document.getElementById("busState");
-  if(el){
-    el.classList.toggle("moving", isMoving);
-    el.classList.toggle("stopped",!isMoving);
-    el.textContent=isMoving?"Movimiento":"Detenido";
+// =====================================================
+//                      BUCLE PRINCIPAL
+// =====================================================
+void loop() {
+  ledService();
+  
+  // Mantenimiento de red
+  if(millis() - lastNetCheck >= NET_CHECK_MS){
+    lastNetCheck = millis();
+    forceWiFi();
+    forceFirebase();
   }
-}
-
-// ─── Firebase listeners (bus) ─────────────────────────────────
-onValue(ref(db,"NodoFijo"),snap=>{
-  const d=snap.val(); if(!d) return;
-  latestFijoData=d;
-  if(infoOpen) renderInfo();
-  const lat=Number(d.lat||0),lon=Number(d.lon||0);
-  if(!lat||!lon) return;
-  nodoFijoLast.dist_m=(d.bus_dist_m!==undefined)?Number(d.bus_dist_m):null;
-  nodoFijoLast.eta_s =(d.bus_eta_s !==undefined)?Number(d.bus_eta_s) :null;
-  upsertNodoFijoMarker(lat,lon);
-});
-onValue(ref(db,"Recolector"),snap=>{
-  const d=snap.val(); if(!d) return;
-  latestBusData=d;
-  if(infoOpen) renderInfo();
-});
-
-// ─── Aplica datos a UI y mapa ─────────────────────────────────
-function applyBusDataToUIAndMap(d) {
-  const lat=Number(d.lat||0),lon=Number(d.lon||0);
-  if(!lat||!lon) return null;
-  const rawSpeedKmh =Number(d.speed_kmh||0);
-  const usedSpeedKmh=pickSpeedKmh(rawSpeedKmh);
-  document.getElementById("hora").textContent=d.hora_ecuador??"--";
-  setBusMovingState(rawSpeedKmh>=1.0);
-  const busPos=[lat,lon];
-  busMarker.setLatLng(busPos);
-  if(followEnabled) map.panTo(busPos,{animate:true,duration:0.4});
-  if(!lastLatLng) map.setView(busPos,16);
-  lastLatLng=busPos;
-  const ph=buildBusPopupHtml(rawSpeedKmh,busIsMoving);
-  if(busMarker.getPopup()) busMarker.setPopupContent(ph);
-  else busMarker.bindPopup(ph);
-  return {lat,lon,rawSpeedKmh,usedSpeedKmh};
-}
-
-// ─── Loop 3 s ─────────────────────────────────────────────────
-let activeSolicitudPopupKey = null;
-
-setInterval(()=>{
-  if(!latestBusData) return;
-  const info=applyBusDataToUIAndMap(latestBusData);
-  if(!info) return;
-
-  // ✅ Pasar velocidad cruda al trail para que detecte reposo
-  updateGreenTrailForced(info.lat, info.lon, info.rawSpeedKmh);
-
-  // Contenedores / NodoFijo
-  if(activeStopId){
-    if(activeStopId===NODO_FIJO_ID&&nodoFijoMarker){
-      nodoFijoMarker.setPopupContent(buildNodoFijoPopupHtml(info.usedSpeedKmh));
+  
+  checkRemoteRestart();
+  
+  // Envío cada 2s → fluidez en el mapa Leaflet
+  if(millis() - lastSend >= SEND_INTERVAL_MS) {
+    lastSend = millis();
+    
+    String ecTime = getEcuadorTimeString();
+    bool validLoc = gps.location.isValid();
+    double lat = validLoc ? gps.location.lat() : 0.0;
+    double lon = validLoc ? gps.location.lng() : 0.0;
+    int sats = gps.satellites.isValid() ? (int)gps.satellites.value() : -1;
+    double hdop = gps.hdop.isValid() ? gps.hdop.hdop() : -1;
+    double speedKmh = gps.speed.isValid() ? gps.speed.kmph() : -1;
+    double courseDeg = gps.course.isValid() ? gps.course.deg() : -1;
+    
+    // ✅ ALTURA MEJORADA — con validación robusta y 2 decimales
+    double altM = -9999.0;
+    if(gps.altitude.isValid()) {
+      altM = gps.altitude.meters();
+      // Filtrado: descartar valores imposibles para Ecuador
+      if(altM < -200.0 || altM > 6000.0) {
+        altM = -9999.0; // Marcador de dato inválido
+      }
+    }
+    
+    bool goodFix = isGoodFix(validLoc, sats, hdop);
+    
+    // --- FILTRO ANTI-SALTOS ---
+    bool acceptPoint = true;
+    double jumpM = 0.0;
+    
+    if(!validLoc || lat == 0.0 || lon == 0.0) acceptPoint = false;
+    else if(!hasLastAccepted) acceptPoint = true;
+    else {
+      unsigned long nowMs = millis();
+      double dtS = (nowMs - lastAcceptedMs) / 1000.0;
+      if(dtS < 0.5) dtS = SEND_INTERVAL_MS / 1000.0;
+      jumpM = haversineMeters(lastLat, lastLon, lat, lon);
+      
+      double maxSpeedKmh = MAX_SPEED_KMH_FOR_SANITY;
+      if(speedKmh > 0 && speedKmh < 140) maxSpeedKmh = max(maxSpeedKmh, speedKmh * 1.6);
+      if(maxSpeedKmh > 140) maxSpeedKmh = 140;
+      
+      double allowedM = (maxSpeedKmh / 3.6) * dtS * EXTRA_MARGIN;
+      if(jumpM > HARD_MAX_JUMP_M) acceptPoint = false;
+      else if(jumpM > max(MIN_ABS_JUMP_M, allowedM)) acceptPoint = false;
+      if(acceptPoint && hdop > VERY_BAD_HDOP && jumpM > BADFIX_JUMP_M) acceptPoint = false;
+    }
+    
+    // --- SUAVIZADO EMA + ANCLA ---
+    double outLat = lat, outLon = lon;
+    if(acceptPoint) {
+      double alpha = getAdaptiveAlpha(goodFix, speedKmh, jumpM);
+      applyEMA(lat, lon, alpha);
+      double usedSpeed = (speedKmh < 0) ? 0.0 : speedKmh;
+      updateAnchor(usedSpeed, fLat, fLon);
+      outLat = getOutputLat(lat);
+      outLon = getOutputLon(lon);
     } else {
-      const s=stops.find(x=>x.id===activeStopId);
-      const m=stopMarkers.get(activeStopId);
-      if(s&&m){
-        const dist2=haversineMeters(info.lat,info.lon,s.lat,s.lon);
-        const eta2 =formatETA(calcEtaSeconds(dist2,info.usedSpeedKmh));
-        m.setPopupContent(buildStopPopupHtml(
-          `🗑️ ${s.name}`,eta2,formatDist(dist2),`${info.usedSpeedKmh.toFixed(1)} km/h`
-        ));
-      }
+      if(anchorActive){ outLat = anchorLat; outLon = anchorLon; }
+      else { outLat = hasFiltered ? fLat : lat; outLon = hasFiltered ? fLon : lon; }
     }
-  }
-
-  if(busMarker.isPopupOpen())
-    busMarker.setPopupContent(buildBusPopupHtml(info.rawSpeedKmh,busIsMoving));
-
-  if(activeSolicitudPopupKey){
-    const item=marcadoresActivos.get(activeSolicitudPopupKey);
-    if(item && item.marker.isPopupOpen()){
-      const dist2=haversineMeters(info.lat,info.lon,item.lat,item.lon);
-      const eta2 =formatETA(calcEtaSeconds(dist2,info.usedSpeedKmh));
-      item.marker.setPopupContent(
-        buildSolicitudPopupHtml(
-          activeSolicitudPopupKey,
-          item.esMio,
-          item.color,
-          eta2,
-          formatDist(dist2),
-          `${info.usedSpeedKmh.toFixed(1)} km/h`
-        )
-      );
+    
+    // --- SALIDA SERIAL ---
+    Serial.println("────────────────────────────────────");
+    Serial.printf("🕐 %s\n", ecTime.c_str());
+    Serial.printf("📍 Lat: %.7f | Lon: %.7f\n", outLat, outLon);
+    Serial.printf("🛰️ Sats: %d | HDOP: %.2f | Fix: %s\n",
+      sats, hdop, goodFix ? "✅ EXCELENTE" : "⚠️ Regular");
+    Serial.printf("🚗 Vel: %.1f km/h | Alt: %.2f m | Ancla: %s\n",
+      speedKmh, altM, anchorActive ? "⚓ ACTIVA" : "➡️ Moviendo");
+    
+    // --- FIREBASE → LISTO PARA LEAFLET 📡 ---
+    if(WiFi.status() == WL_CONNECTED && firebaseReady()) {
+      FirebaseJson json;
+      json.set("hora_ecuador", ecTime);
+      json.set("lat", outLat);         // Filtrada → mapa
+      json.set("lon", outLon);         // Filtrada → mapa
+      json.set("raw_lat", lat);        // Bruta → referencia
+      json.set("raw_lon", lon);        // Bruta → referencia
+      json.set("satelites", sats);
+      json.set("hdop", hdop);
+      json.set("speed_kmh", speedKmh);
+      json.set("course_deg", courseDeg);
+      json.set("alt_m", altM);         // ✅ Altura con 2 decimales
+      json.set("good_fix", goodFix);
+      json.set("anchor_active", anchorActive);
+      json.set("timestamp_ms", (int)millis());
+      
+      // Ruta organizada: /Recolector/Otavalo/Vehiculo1
+      if(Firebase.RTDB.setJSON(&fbdo, "/Recolector/Otavalo/Vehiculo1", &json)) {
+        ledPulseMs(200);
+        Serial.println("✅ → Firebase OK");
+        if(acceptPoint){ lastLat = lat; lastLon = lon; lastAcceptedMs = millis(); hasLastAccepted = true; }
+      } else {
+        ledOff();
+        Serial.print("❌ → Fallo: "); Serial.println(fbdo.errorReason());
+      }
     } else {
-      activeSolicitudPopupKey=null;
+      Serial.println("⚠️ Sin WiFi — datos locales solo");
+      if(acceptPoint){ lastLat = lat; lastLon = lon; lastAcceptedMs = millis(); hasLastAccepted = true; }
     }
   }
-},3000);
-
-// ═══════════════════════════════════════════════════════════════
-// ─── Solicitudes compartidas en tiempo real (Firebase) ────────
-// ═══════════════════════════════════════════════════════════════
-const SOLICITUD_TTL_MS = 10 * 60 * 1000;
-const solicitudesRef   = ref(db, "Solicitudes");
-
-const marcadoresActivos = new Map();
-
-const COLORES_POOL = [
-  "#e74c3c","#e67e22","#f1c40f","#2ecc71","#1abc9c",
-  "#3498db","#9b59b6","#e91e63","#00bcd4","#ff5722",
-  "#8bc34a","#ff9800","#673ab7","#009688","#f44336",
-  "#cddc39","#03a9f4","#ff4081","#76ff03","#40c4ff"
-];
-function colorForKey(key) {
-  let hash=0;
-  for(let i=0;i<key.length;i++) hash=(hash*31+key.charCodeAt(i))>>>0;
-  return COLORES_POOL[hash % COLORES_POOL.length];
 }
-function freqForKey(key) {
-  let hash=0;
-  for(let i=0;i<key.length;i++) hash=(hash*17+key.charCodeAt(i))>>>0;
-  return SOLICITUD_FREQ_BASE[hash % SOLICITUD_FREQ_BASE.length];
-}
-
-function formatCountdown(ms) {
-  if(ms<=0) return "0:00";
-  const s=Math.ceil(ms/1000);
-  const m=Math.floor(s/60), ss=s%60;
-  return `${m}:${String(ss).padStart(2,"0")}`;
-}
-
-function dibujarSolicitudEnMapa(fbKey, data) {
-  if(marcadoresActivos.has(fbKey)) return;
-
-  const { lat, lon, expireAt, uid } = data;
-  const remaining = expireAt - Date.now();
-  if(remaining <= 0) return;
-
-  const color  = colorForKey(fbKey);
-  const freqP  = freqForKey(fbKey);
-  const esMio  = (uid === MY_UID);
-
-  const html = `
-    <div style="position:relative;width:52px;height:52px;">
-      <div class="solicitud-ring" style="border-color:${color};top:50%;left:50%;"></div>
-      <div class="solicitud-core" style="background:${color};top:50%;left:50%;"></div>
-      <div class="solicitud-timer" id="stimer-${fbKey}">
-        ${formatCountdown(remaining)}
-      </div>
-    </div>`;
-
-  const icon = L.divIcon({
-    className:"", html,
-    iconSize:[52,52], iconAnchor:[26,26]
-  });
-
-  const marker = L.marker([lat,lon],{icon,zIndexOffset:500}).addTo(map);
-
-  const initialETA  = lastLatLng
-    ? formatETA(calcEtaSeconds(haversineMeters(lastLatLng[0],lastLatLng[1],lat,lon), pickSpeedKmh(0)))
-    : "--";
-  const initialDist = lastLatLng
-    ? formatDist(haversineMeters(lastLatLng[0],lastLatLng[1],lat,lon))
-    : "--";
-
-  marker.bindPopup(buildSolicitudPopupHtml(fbKey, esMio, color, initialETA, initialDist, "--"));
-
-  marker.on("popupopen", ()=>{
-    soundStopPopup();
-    activeSolicitudPopupKey = fbKey;
-    pauseFollowFor();
-  });
-  marker.on("popupclose", ()=>{
-    if(activeSolicitudPopupKey === fbKey) activeSolicitudPopupKey = null;
-  });
-
-  const tickerId = setInterval(()=>{
-    const rem = expireAt - Date.now();
-    const el  = document.getElementById(`stimer-${fbKey}`);
-    if(el) el.textContent = formatCountdown(rem);
-    if(rem <= 0) clearInterval(tickerId);
-  },1000);
-
-  const stopSound  = crearSonidoSolicitud(freqP);
-  const autoExpire = setTimeout(()=>{ quitarMarcador(fbKey); }, remaining+500);
-
-  marcadoresActivos.set(fbKey, { marker, tickerId, stopSound, autoExpire, lat, lon, esMio, color });
-}
-
-function quitarMarcador(fbKey) {
-  const item = marcadoresActivos.get(fbKey);
-  if(!item) return;
-  marcadoresActivos.delete(fbKey);
-  clearInterval(item.tickerId);
-  clearTimeout(item.autoExpire);
-  item.stopSound();
-  if(map.hasLayer(item.marker)) map.removeLayer(item.marker);
-  if(activeSolicitudPopupKey===fbKey) activeSolicitudPopupKey=null;
-}
-
-onValue(solicitudesRef, snap => {
-  const data = snap.val() || {};
-  const claves = new Set(Object.keys(data));
-  for(const [k,v] of Object.entries(data)){
-    if(!marcadoresActivos.has(k)) dibujarSolicitudEnMapa(k, v);
-  }
-  for(const k of marcadoresActivos.keys()){
-    if(!claves.has(k)) quitarMarcador(k);
-  }
-});
-
-setInterval(async ()=>{
-  try {
-    const snap = await new Promise(res=>onValue(solicitudesRef,res,{onlyOnce:true}));
-    const data = snap.val()||{};
-    for(const [k,v] of Object.entries(data)){
-      if(v.uid === MY_UID && v.expireAt <= Date.now()){
-        await remove(ref(db,`Solicitudes/${k}`));
-      }
-    }
-  } catch(e){}
-},30000);
-
-async function crearSolicitud(lat, lon) {
-  const ok = await canUserSolicitar(db);
-  if(!ok) {
-    const rem = await tiempoRestante(db);
-    soundBlocked();
-    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
-    return;
-  }
-  const expireAt = Date.now() + SOLICITUD_TTL_MS;
-  const newRef   = push(solicitudesRef);
-  await set(newRef, { lat, lon, expireAt, uid: MY_UID });
-  await registrarSolicitudUsuario(db);
-  showToast("✅ Solicitud Enviada", 3000);
-}
-
-window._cancelarSolicitud = async function(fbKey) {
-  map.closePopup();
-  await remove(ref(db,`Solicitudes/${fbKey}`));
-};
-
-document.getElementById("btnSolicitar").addEventListener("click", async () => {
-  const ok = await canUserSolicitar(db);
-  if(!ok) {
-    const rem = await tiempoRestante(db);
-    soundBlocked();
-    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
-    return;
-  }
-  soundSolicitar();
-  pauseFollowFor();
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(
-      pos => { crearSolicitud(pos.coords.latitude, pos.coords.longitude); },
-      ()  => { const c=map.getCenter(); crearSolicitud(c.lat,c.lng); },
-      {timeout:4000,maximumAge:10000,enableHighAccuracy:true}
-    );
-  } else {
-    const c=map.getCenter();
-    crearSolicitud(c.lat,c.lng);
-  }
-});
-
-let drawMode=false;
-const btnDibujar = document.getElementById("btnDibujar");
-const drawHint   = document.getElementById("drawHint");
-const mapEl      = document.getElementById("map");
-
-function activarModoDibujo() {
-  drawMode=true;
-  btnDibujar.textContent="⭕ Dibujar: Si";
-  btnDibujar.classList.add("drawing-active");
-  mapEl.classList.add("draw-mode");
-  drawHint.style.display="block";
-  map.dragging.disable();
-  map.scrollWheelZoom.disable();
-  soundDibujarOn();
-  pauseFollowFor();
-}
-function desactivarModoDibujo() {
-  drawMode=false;
-  btnDibujar.textContent="⭕ Dibujar";
-  btnDibujar.classList.remove("drawing-active");
-  mapEl.classList.remove("draw-mode");
-  drawHint.style.display="none";
-  map.dragging.enable();
-  map.scrollWheelZoom.enable();
-}
-
-btnDibujar.addEventListener("click", async () => {
-  if(!drawMode){
-    const ok = await canUserSolicitar(db);
-    if(!ok){
-      const rem = await tiempoRestante(db);
-      soundBlocked();
-      showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
-      return;
-    }
-    activarModoDibujo();
-  } else {
-    soundDibujarOff();
-    desactivarModoDibujo();
-  }
-});
-
-map.on("click", async function(e){
-  if(!drawMode) return;
-  soundDibujarPlace();
-  desactivarModoDibujo();
-  await crearSolicitud(e.latlng.lat, e.latlng.lng);
-});
-
-window.addEventListener("keydown", e=>{
-  if(e.key==="Escape"&&drawMode){ soundDibujarOff(); desactivarModoDibujo(); }
-});
-</script>
-</body>
-</html>
