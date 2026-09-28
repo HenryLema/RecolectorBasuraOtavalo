@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8" />onValue(ref(
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Recolector Basura Otavalo</title>
 
@@ -875,7 +875,7 @@ onValue(ref(db,"NodoFijo"),snap=>{
   nodoFijoLast.eta_s =(d.bus_eta_s !==undefined)?Number(d.bus_eta_s) :null;
   upsertNodoFijoMarker(lat,lon);
 });
-onValue(ref(db,"Recolector"),snap=>{
+onValue(ref(db,"Recolector/Otavalo/Vehiculo1"),snap=>{
   const d=snap.val(); if(!d) return;
   latestBusData=d;
   if(infoOpen) renderInfo();
