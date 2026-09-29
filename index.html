@@ -471,10 +471,14 @@ function renderInfo() {
   const m=latestBusData||{}, f=latestFijoData||{};
   const movilVel=(m.speed_kmh!==undefined&&isFinite(Number(m.speed_kmh)))
     ?`${Number(m.speed_kmh).toFixed(1)} km/h`:"--";
+  const altRaw=[m.altura,m.alt,m.altitud,m.altitude,m.alt_m,m.altura_m]
+    .find(v=>v!==undefined&&v!==null&&v!==""&&isFinite(Number(v)));
+  const movilAlt=altRaw!==undefined?`${Number(altRaw).toFixed(1)} m`:"--";
   infoMovilEl.innerHTML=makeLines([
     `Hora: ${safeVal(m.hora_ecuador)}`,
     `Latitud: ${m.lat!==undefined?safeNum(m.lat,6):"--"}`,
     `Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
+    `Altura: ${movilAlt}`,
     `Satélites: ${safeVal(m.satelites)}`,
     `Velocidad: ${movilVel}`,
     `Precisión: ${safeVal(m.hdop)}`
