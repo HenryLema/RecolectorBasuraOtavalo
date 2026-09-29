@@ -550,7 +550,7 @@ document.getElementById("btnToggleTrail").addEventListener("click",e=>{
     trailLine.setLatLngs(trailLatLngs);
     if(!map.hasLayer(trailLine)) trailLine.addTo(map);
     if(!map.hasLayer(trailHead)) trailHead.addTo(map);
-    e.target.textContent="🟢 Recorrido: Ok";
+    e.target.textContent="🟢 Recorrido: Si";
   } else {
 
     if(map.hasLayer(trailLine)) map.removeLayer(trailLine);
