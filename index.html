@@ -299,12 +299,12 @@
       <button id="btnReload"      class="chip">🔄 Recargar</button>
       <button id="btnToggleTrail" class="chip">🟢 Recorrido: Si</button>
       <button id="btnInfo"        class="chip">ℹ️ Info</button>
-      <button id="btnDibujar"     class="chip">⏳ Calcular</button>
+      <button id="btnDibujar"     class="chip">📈 Calcular</button>
     </div>
   </div>
 
   <div id="map"></div>
-  <div id="drawHint">Toca el mapa para calcular</div>
+  <div id="drawHint">Agrega el Punto para Calcular</div>
   <div id="toast"></div>
 
   <div id="infoOverlay" aria-hidden="true">
@@ -1012,7 +1012,7 @@ const mapEl      = document.getElementById("map");
 
 function activarModoDibujo() {
   drawMode=true;
-  btnDibujar.textContent="👌 Calcular: Si";
+  btnDibujar.textContent="📈 Calcular: Si";
   btnDibujar.classList.add("drawing-active");
   mapEl.classList.add("draw-mode");
   drawHint.style.display="block";
@@ -1023,7 +1023,7 @@ function activarModoDibujo() {
 }
 function desactivarModoDibujo() {
   drawMode=false;
-  btnDibujar.textContent="🖐️ Calcular";
+  btnDibujar.textContent="📈 Calcular";
   btnDibujar.classList.remove("drawing-active");
   mapEl.classList.remove("draw-mode");
   drawHint.style.display="none";
