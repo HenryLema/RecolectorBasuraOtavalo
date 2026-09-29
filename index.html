@@ -476,8 +476,8 @@ function renderInfo() {
   const movilAlt=altRaw!==undefined?`${Number(altRaw).toFixed(1)} m`:"--";
   infoMovilEl.innerHTML=makeLines([
     `⏱️ Hora: ${safeVal(m.hora_ecuador)}`,
-    `🗺️ Latitud: ${m.lat!==undefined?safeNum(m.lat,6):"--"}`,
-    `🗺️ Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
+    `📍 Latitud: ${m.lat!==undefined?safeNum(m.lat,6):"--"}`,
+    `📍 Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
     `⛰️ Altura: ${movilAlt}`,
     `🛰️ Satélites: ${safeVal(m.satelites)}`,
     `🚀 Velocidad: ${movilVel}`,
