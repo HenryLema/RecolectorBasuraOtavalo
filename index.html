@@ -106,17 +106,13 @@
     .busstate-pill.stopped { background: #cc0000; }
 
     .bus-wrap {
-      width: clamp(26px,5vw,34px);
-      height: clamp(26px,5vw,34px);
-      border-radius: 999px;
-      display: flex; align-items: center; justify-content: center;
-      transform: translate(-50%,-50%);
+      width: 22px; height: 22px;
+      border-radius: 50%;
       outline: none;
       user-select: none;
     }
     .bus-wrap.moving  { background: #008000; }
     .bus-wrap.stopped { background: #cc0000; }
-    .bus-emoji { font-size: clamp(14px,3vw,20px); line-height: 1; }
 
     .stop-icon {
       font-size: clamp(22px,4vw,32px);
@@ -477,12 +473,12 @@ const stopIcon = L.divIcon({
   className:"", html:'<span class="stop-icon">🚮</span>',
   iconSize:[36,36], iconAnchor:[18,18]
 });
-const makeBusIconHtml = m =>
-  `<div class="bus-wrap ${m?"moving":"stopped"}"><span class="bus-emoji">🚚</span></div>`;
-
+const BUS_ICONS=[false,true].map(m=>L.divIcon({
+  className:"", html:`<div class="bus-wrap ${m?"moving":"stopped"}"></div>`,
+  iconSize:[22,22], iconAnchor:[11,11]
+}));
 let busIsMoving=false;
-let busIcon=L.divIcon({className:"",html:makeBusIconHtml(false),iconSize:[30,30],iconAnchor:[15,15]});
-const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
+const busMarker=L.marker([0,0],{icon:BUS_ICONS[0]}).addTo(map);
 
 function buildBusPopupHtml(speedKmh,isMoving) {
   return `<div class="popup-wrap">
@@ -790,8 +786,7 @@ function upsertNodoFijoMarker(lat,lon) {
 function setBusMovingState(isMoving) {
   if(busIsMoving===isMoving) return;
   busIsMoving=isMoving;
-  busIcon=L.divIcon({className:"",html:makeBusIconHtml(busIsMoving),iconSize:[30,30],iconAnchor:[15,15]});
-  busMarker.setIcon(busIcon);
+  busMarker.setIcon(BUS_ICONS[+isMoving]);
   const el=document.getElementById("busState");
   if(el){
     el.classList.toggle("moving", isMoving);
