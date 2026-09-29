@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />onValue(ref(
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>Recolector Basura Otavalo</title>
+  <title>Basura Otavalo</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -473,7 +473,7 @@ const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
 
 function buildBusPopupHtml(speedKmh,isMoving) {
   return `<div class="popup-wrap">
-    <span class="popup-title">🚛 Recolector</span>
+    <span class="popup-title">🚚 Recolector</span>
     <span class="popup-line">Velocidad: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
     <span class="popup-line">Estado: <span class="popup-val ${isMoving?"moving":"stopped"}">${isMoving?"Movimiento":"Detenido"}</span></span>
   </div>`;
