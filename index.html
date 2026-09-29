@@ -292,7 +292,6 @@
       <button id="btnReload"      class="chip">🔃 Recargar</button>
       <button id="btnToggleTrail" class="chip">🟢 Recorrido: Si</button>
       <button id="btnInfo"        class="chip">ℹ️ Info</button>
-      <button id="btnSolicitar"   class="chip">🖐️ Solicitar</button>
       <button id="btnDibujar"     class="chip">⭕ Dibujar</button>
     </div>
   </div>
@@ -999,28 +998,6 @@ window._cancelarSolicitud = async function(fbKey) {
   map.closePopup();
   await remove(ref(db,`Solicitudes/${fbKey}`));
 };
-
-document.getElementById("btnSolicitar").addEventListener("click", async () => {
-  const ok = await canUserSolicitar(db);
-  if(!ok) {
-    const rem = await tiempoRestante(db);
-
-    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
-    return;
-  }
-
-  pauseFollowFor();
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(
-      pos => { crearSolicitud(pos.coords.latitude, pos.coords.longitude); },
-      ()  => { const c=map.getCenter(); crearSolicitud(c.lat,c.lng); },
-      {timeout:4000,maximumAge:10000,enableHighAccuracy:true}
-    );
-  } else {
-    const c=map.getCenter();
-    crearSolicitud(c.lat,c.lng);
-  }
-});
 
 let drawMode=false;
 const btnDibujar = document.getElementById("btnDibujar");
