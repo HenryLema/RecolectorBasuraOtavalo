@@ -304,7 +304,7 @@
   </div>
 
   <div id="map"></div>
-  <div id="drawHint">Toca el mapa para colocar tu solicitud</div>
+  <div id="drawHint">Toca el mapa para calcular</div>
   <div id="toast"></div>
 
   <div id="infoOverlay" aria-hidden="true">
@@ -1012,7 +1012,7 @@ const mapEl      = document.getElementById("map");
 
 function activarModoDibujo() {
   drawMode=true;
-  btnDibujar.textContent="👌 Solicitar: Si";
+  btnDibujar.textContent="👌 Calcular: Si";
   btnDibujar.classList.add("drawing-active");
   mapEl.classList.add("draw-mode");
   drawHint.style.display="block";
