@@ -427,7 +427,7 @@ const map = L.map("map", {
 
 L.Popup.mergeOptions({closeButton:true});
 L.control.zoom({position:"bottomright"}).addTo(map);
-map.attributionControl.setPrefix("Red Otavalo Telecom");
+map.attributionControl.setPrefix("Red Otavalo");
 const _conn = navigator.connection || {};
 const _slowNet = !!_conn.saveData || /(^|slow-)2g|3g/.test(_conn.effectiveType || "");
 const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
