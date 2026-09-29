@@ -997,7 +997,7 @@ async function crearSolicitud(lat, lon) {
   const expireAt = Date.now() + SOLICITUD_TTL_MS;
   const newRef   = push(solicitudesRef);
   await set(newRef, { lat, lon, expireAt, uid: MY_UID });
-  showToast("✅ Solicitud Enviada", 3000);
+  showToast("✅ Punto Agregado", 3000);
 }
 
 window._cancelarSolicitud = async function(fbKey) {
