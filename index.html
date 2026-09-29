@@ -303,7 +303,7 @@
   <div id="infoOverlay" aria-hidden="true">
     <div id="infoModal" role="dialog" aria-modal="true">
       <div id="infoTopRow">
-        <div id="infoTitle">Información en Tiempo Real</div>
+        <div id="infoTitle">Tiempo Real</div>
         <button id="infoClose" aria-label="Cerrar">×</button>
       </div>
       <div id="infoGrid">
@@ -395,7 +395,7 @@ const map = L.map("map", {
 
 L.Popup.mergeOptions({closeButton:true});
 L.control.zoom({position:"bottomright"}).addTo(map);
-map.attributionControl.setPrefix("Red Otavalo Telecomunicaciones");
+map.attributionControl.setPrefix("Red Otavalo Telecom");
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
   maxZoom:19, detectRetina:true
 }).addTo(map);
@@ -1006,7 +1006,7 @@ const mapEl      = document.getElementById("map");
 
 function activarModoDibujo() {
   drawMode=true;
-  btnDibujar.textContent="⭕ Solicitar: Si";
+  btnDibujar.textContent="👌 Solicitar: Si";
   btnDibujar.classList.add("drawing-active");
   mapEl.classList.add("draw-mode");
   drawHint.style.display="block";
@@ -1017,7 +1017,7 @@ function activarModoDibujo() {
 }
 function desactivarModoDibujo() {
   drawMode=false;
-  btnDibujar.textContent="⭕ Solicitar";
+  btnDibujar.textContent="🖐️ Solicitar";
   btnDibujar.classList.remove("drawing-active");
   mapEl.classList.remove("draw-mode");
   drawHint.style.display="none";
