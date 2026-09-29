@@ -752,6 +752,12 @@ function stopPopupHtml(s){
   const d=haversineMeters(i.lat,i.lon,s.lat,s.lon);
   return buildStopPopupHtml(t,formatETA(calcEtaSeconds(d,i.usedSpeedKmh)),formatDist(d),`${i.usedSpeedKmh.toFixed(1)} km/h`);
 }
+function solicitudPopupHtml(k,esMio,color,lat,lon){
+  const i=lastBusInfo;
+  if(!i) return buildSolicitudPopupHtml(k,esMio,color);
+  const d=haversineMeters(i.lat,i.lon,lat,lon);
+  return buildSolicitudPopupHtml(k,esMio,color,formatETA(calcEtaSeconds(d,i.usedSpeedKmh)),formatDist(d),`${i.usedSpeedKmh.toFixed(1)} km/h`);
+}
 stops.forEach(s=>{
   const m=L.marker([s.lat,s.lon],{icon:stopIcon}).addTo(map);
   m.bindPopup(stopPopupHtml(s));
@@ -859,18 +865,7 @@ setInterval(()=>{
   if(activeSolicitudPopupKey){
     const item=marcadoresActivos.get(activeSolicitudPopupKey);
     if(item && item.marker.isPopupOpen()){
-      const dist2=haversineMeters(info.lat,info.lon,item.lat,item.lon);
-      const eta2 =formatETA(calcEtaSeconds(dist2,info.usedSpeedKmh));
-      item.marker.setPopupContent(
-        buildSolicitudPopupHtml(
-          activeSolicitudPopupKey,
-          item.esMio,
-          item.color,
-          eta2,
-          formatDist(dist2),
-          `${info.usedSpeedKmh.toFixed(1)} km/h`
-        )
-      );
+      item.marker.setPopupContent(solicitudPopupHtml(activeSolicitudPopupKey,item.esMio,item.color,item.lat,item.lon));
     } else {
       activeSolicitudPopupKey=null;
     }
@@ -930,19 +925,12 @@ function dibujarSolicitudEnMapa(fbKey, data) {
 
   const marker = L.marker([lat,lon],{icon,zIndexOffset:500}).addTo(map);
 
-  const initialETA  = lastLatLng
-    ? formatETA(calcEtaSeconds(haversineMeters(lastLatLng[0],lastLatLng[1],lat,lon), pickSpeedKmh(0)))
-    : "--";
-  const initialDist = lastLatLng
-    ? formatDist(haversineMeters(lastLatLng[0],lastLatLng[1],lat,lon))
-    : "--";
-
-  marker.bindPopup(buildSolicitudPopupHtml(fbKey, esMio, color, initialETA, initialDist, "--"));
+  marker.bindPopup(solicitudPopupHtml(fbKey, esMio, color, lat, lon));
 
   marker.on("popupopen", ()=>{
-
     activeSolicitudPopupKey = fbKey;
     pauseFollowFor();
+    marker.setPopupContent(solicitudPopupHtml(fbKey, esMio, color, lat, lon));
   });
   marker.on("popupclose", ()=>{
     if(activeSolicitudPopupKey === fbKey) activeSolicitudPopupKey = null;
