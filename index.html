@@ -777,10 +777,17 @@ function buildSolicitudPopupHtml(fbKey, esMio, color, etaTxt="--", distTxt="--",
   </div>`;
 }
 
+let lastBusInfo=null;
+function stopPopupHtml(s){
+  const i=lastBusInfo, t=`🗑️ ${s.name}`;
+  if(!i) return buildStopPopupHtml(t);
+  const d=haversineMeters(i.lat,i.lon,s.lat,s.lon);
+  return buildStopPopupHtml(t,formatETA(calcEtaSeconds(d,i.usedSpeedKmh)),formatDist(d),`${i.usedSpeedKmh.toFixed(1)} km/h`);
+}
 stops.forEach(s=>{
   const m=L.marker([s.lat,s.lon],{icon:stopIcon}).addTo(map);
-  m.bindPopup(buildStopPopupHtml(s.name));
-  m.on("popupopen", ()=>{activeStopId=s.id; pauseFollowFor(); });
+  m.bindPopup(stopPopupHtml(s));
+  m.on("popupopen", ()=>{activeStopId=s.id; pauseFollowFor(); m.setPopupContent(stopPopupHtml(s)); });
   m.on("popupclose",()=>{ if(activeStopId===s.id) activeStopId=null; });
   stopMarkers.set(s.id,m);
 });
@@ -862,6 +869,7 @@ setInterval(()=>{
   if(!latestBusData) return;
   const info=applyBusDataToUIAndMap(latestBusData);
   if(!info) return;
+  lastBusInfo=info;
 
   // ✅ Pasar velocidad cruda al trail para que detecte reposo
   updateGreenTrailForced(info.lat, info.lon, info.rawSpeedKmh);
@@ -873,13 +881,7 @@ setInterval(()=>{
     } else {
       const s=stops.find(x=>x.id===activeStopId);
       const m=stopMarkers.get(activeStopId);
-      if(s&&m){
-        const dist2=haversineMeters(info.lat,info.lon,s.lat,s.lon);
-        const eta2 =formatETA(calcEtaSeconds(dist2,info.usedSpeedKmh));
-        m.setPopupContent(buildStopPopupHtml(
-          `🗑️ ${s.name}`,eta2,formatDist(dist2),`${info.usedSpeedKmh.toFixed(1)} km/h`
-        ));
-      }
+      if(s&&m) m.setPopupContent(stopPopupHtml(s));
     }
   }
 
