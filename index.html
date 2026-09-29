@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Basura Otavalo</title>
 
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="preconnect" href="https://recolectorbasuraotavalo-default-rtdb.firebaseio.com" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://a.tile.openstreetmap.org">
+  <link rel="dns-prefetch" href="https://b.tile.openstreetmap.org">
+  <link rel="dns-prefetch" href="https://c.tile.openstreetmap.org">
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -322,7 +329,7 @@
 <script type="module">
 import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
 import { getDatabase, ref, onValue, set, push,
-         remove, serverTimestamp }                from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+         remove, serverTimestamp, goOffline, goOnline } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
 
 // ─── Toast ────────────────────────────────────────────────────
 let _toastTimer = null;
@@ -388,6 +395,31 @@ const firebaseConfig = {
 };
 const db = getDatabase(initializeApp(firebaseConfig));
 
+// ─── Conectividad (móviles / portátiles) ──────────────────────
+let fbConnected = false, wasDisconnected = false, _offTimer = null, _hiddenAt = 0;
+onValue(ref(db, ".info/connected"), snap => {
+  fbConnected = snap.val() === true;
+  if(fbConnected){
+    clearTimeout(_offTimer); _offTimer = null;
+    if(wasDisconnected){ wasDisconnected = false; showToast("✅ Conexión restablecida", 2500); }
+  } else if(!_offTimer){
+    _offTimer = setTimeout(() => {
+      _offTimer = null;
+      if(!fbConnected){ wasDisconnected = true; showToast("📡 Sin conexión, reconectando…", 6000); }
+    }, 5000);
+  }
+});
+function reconectar(force){
+  if(fbConnected && !force) return;
+  try { goOffline(); goOnline(); } catch(e) {}
+}
+window.addEventListener("online", () => reconectar(false));
+window.addEventListener("pageshow", e => { if(e.persisted) reconectar(true); });
+document.addEventListener("visibilitychange", () => {
+  if(document.hidden){ _hiddenAt = Date.now(); return; }
+  reconectar(Date.now() - _hiddenAt > 60000);
+});
+
 // ─── Mapa ─────────────────────────────────────────────────────
 const map = L.map("map", {
   zoomControl:false, tap:true, tapTolerance:15
@@ -396,9 +428,17 @@ const map = L.map("map", {
 L.Popup.mergeOptions({closeButton:true});
 L.control.zoom({position:"bottomright"}).addTo(map);
 map.attributionControl.setPrefix("Red Otavalo Telecom");
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
-  maxZoom:19, detectRetina:true
+const _conn = navigator.connection || {};
+const _slowNet = !!_conn.saveData || /(^|slow-)2g|3g/.test(_conn.effectiveType || "");
+const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+  maxZoom:19, detectRetina:!_slowNet, updateWhenZooming:false
 }).addTo(map);
+tiles.on("tileerror", e => {
+  const t = e.tile;
+  t._retry = (t._retry || 0) + 1;
+  if(t._retry > 2) return;
+  setTimeout(() => { if(t.isConnected && navigator.onLine !== false) t.src = t.src; }, 1500 * t._retry);
+});
 
 map.on("popupopen", e =>
   setTimeout(()=>{ if(map.hasLayer(e.popup)) map.closePopup(e.popup); },60000)
