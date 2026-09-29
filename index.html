@@ -518,8 +518,8 @@ const busMarker=L.marker([0,0],{icon:busIcon}).addTo(map);
 function buildBusPopupHtml(speedKmh,isMoving) {
   return `<div class="popup-wrap">
     <span class="popup-title">🚚 Recolector</span>
-    <span class="popup-line">Velocidad: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
-    <span class="popup-line">Estado: <span class="popup-val ${isMoving?"moving":"stopped"}">${isMoving?"Movimiento":"Detenido"}</span></span>
+    <span class="popup-line">🚀 Velocidad: <span class="popup-val ${isMoving?"moving":"stopped"}">${Number(speedKmh||0).toFixed(1)} km/h</span></span>
+    <span class="popup-line">🚦 Estado: <span class="popup-val ${isMoving?"moving":"stopped"}">${isMoving?"Movimiento":"Detenido"}</span></span>
   </div>`;
 }
 busMarker.bindPopup(buildBusPopupHtml(0,false));
@@ -753,7 +753,7 @@ function buildStopPopupHtml(name, etaTxt="--", distTxt="--", speedTxt="--") {
     <span class="stop-popup-title">${name}</span>
     <span class="stop-popup-line">✅ Llegada: ${etaTxt}</span>
     <span class="stop-popup-line">📐 Distancia: ${distTxt}</span>
-    <span class="stop-popup-line">🏎️ Velocidad: ${speedTxt}</span>
+    <span class="stop-popup-line">🚀 Velocidad: ${speedTxt}</span>
   </div>`;
 }
 
