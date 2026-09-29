@@ -351,37 +351,6 @@ function getUserId() {
   return uid;
 }
 const MY_UID = getUserId();
-const LIMIT_MS = 12 * 60 * 60 * 1000;
-
-function getMyLastAt(db) {
-  return new Promise(resolve => {
-    onValue(ref(db, `UserLimits/${MY_UID}/lastAt`), snap => {
-      resolve(snap.val() || 0);
-    }, { onlyOnce: true });
-  });
-}
-async function canUserSolicitar(db) {
-  const lastAt = await getMyLastAt(db);
-  return (Date.now() - lastAt) >= LIMIT_MS;
-}
-async function registrarSolicitudUsuario(db) {
-  await set(ref(db, `UserLimits/${MY_UID}/lastAt`), Date.now());
-}
-async function tiempoRestante(db) {
-  const lastAt = await getMyLastAt(db);
-  const diff = LIMIT_MS - (Date.now() - lastAt);
-  return diff > 0 ? diff : 0;
-}
-function formatHMS(ms) {
-  if(ms <= 0) return "0h 0m";
-  const totalSec = Math.ceil(ms/1000);
-  const h = Math.floor(totalSec/3600);
-  const m = Math.floor((totalSec%3600)/60);
-  const s = totalSec%60;
-  if(h>0) return `${h}h ${m}m`;
-  if(m>0) return `${m}m ${s}s`;
-  return `${s}s`;
-}
 
 // ─── Firebase ─────────────────────────────────────────────────
 const firebaseConfig = {
@@ -1025,17 +994,9 @@ setInterval(async ()=>{
 },30000);
 
 async function crearSolicitud(lat, lon) {
-  const ok = await canUserSolicitar(db);
-  if(!ok) {
-    const rem = await tiempoRestante(db);
-
-    showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
-    return;
-  }
   const expireAt = Date.now() + SOLICITUD_TTL_MS;
   const newRef   = push(solicitudesRef);
   await set(newRef, { lat, lon, expireAt, uid: MY_UID });
-  await registrarSolicitudUsuario(db);
   showToast("✅ Solicitud Enviada", 3000);
 }
 
@@ -1071,19 +1032,8 @@ function desactivarModoDibujo() {
 }
 
 btnDibujar.addEventListener("click", async () => {
-  if(!drawMode){
-    const ok = await canUserSolicitar(db);
-    if(!ok){
-      const rem = await tiempoRestante(db);
-
-      showToast(`⏳ Ya usaste tu solicitud. Disponible en ${formatHMS(rem)}`, 6000);
-      return;
-    }
-    activarModoDibujo();
-  } else {
-
-    desactivarModoDibujo();
-  }
+  if(!drawMode) activarModoDibujo();
+  else desactivarModoDibujo();
 });
 
 map.on("click", async function(e){
