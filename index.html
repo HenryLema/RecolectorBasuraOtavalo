@@ -187,6 +187,25 @@
     .leaflet-bar, .leaflet-bar a,
     .leaflet-touch .leaflet-bar, .leaflet-touch .leaflet-bar a,
     .leaflet-control-attribution { border: none !important; }
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip {
+      background: #fff !important;
+      color: #000 !important;
+    }
+    .leaflet-popup-close-button {
+      display: block !important;
+      visibility: visible !important;
+      top: 3px !important; right: 3px !important;
+      width: 24px !important; height: 24px !important;
+      font: 20px/24px Arial, sans-serif !important;
+      text-align: center !important;
+      padding: 0 !important;
+      color: #666 !important;
+      z-index: 10;
+      touch-action: manipulation;
+    }
+    .leaflet-popup-close-button:hover,
+    .leaflet-popup-close-button:active { color: #000 !important; background: transparent !important; }
     .leaflet-marker-shadow { display: none !important; }
     .leaflet-popup-content { font-family: Arial,sans-serif !important; font-weight: normal !important; }
     .leaflet-marker-icon      { filter: none !important; -webkit-filter: none !important; }
@@ -375,6 +394,7 @@ const map = L.map("map", {
   zoomControl:false, tap:true, tapTolerance:15
 }).setView([0.23299010950077462,-78.26316758796887],14);
 
+L.Popup.mergeOptions({closeButton:true});
 L.control.zoom({position:"bottomright"}).addTo(map);
 map.attributionControl.setPrefix("Red Otavalo Telecomunicaciones");
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
