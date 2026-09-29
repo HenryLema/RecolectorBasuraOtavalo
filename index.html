@@ -310,16 +310,16 @@
   <div id="infoOverlay" aria-hidden="true">
     <div id="infoModal" role="dialog" aria-modal="true">
       <div id="infoTopRow">
-        <div id="infoTitle">Tiempo Real</div>
+        <div id="infoTitle">📱 Tiempo Real</div>
         <button id="infoClose" aria-label="Cerrar">×</button>
       </div>
       <div id="infoGrid">
         <div class="infoCol">
-          <div class="infoColTitle">Recolector</div>
+          <div class="infoColTitle">🚚 Recolector</div>
           <div id="infoMovil"></div>
         </div>
         <div class="infoCol">
-          <div class="infoColTitle">Central</div>
+          <div class="infoColTitle">📊 Central</div>
           <div id="infoFijo"></div>
         </div>
       </div>
@@ -475,24 +475,24 @@ function renderInfo() {
     .find(v=>v!==undefined&&v!==null&&v!==""&&isFinite(Number(v)));
   const movilAlt=altRaw!==undefined?`${Number(altRaw).toFixed(1)} m`:"--";
   infoMovilEl.innerHTML=makeLines([
-    `Hora: ${safeVal(m.hora_ecuador)}`,
-    `Latitud: ${m.lat!==undefined?safeNum(m.lat,6):"--"}`,
-    `Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
-    `Altura: ${movilAlt}`,
-    `Satélites: ${safeVal(m.satelites)}`,
-    `Velocidad: ${movilVel}`,
-    `Precisión: ${safeVal(m.hdop)}`
+    `⏱️ Hora: ${safeVal(m.hora_ecuador)}`,
+    `🗺️ Latitud: ${m.lat!==undefined?safeNum(m.lat,6):"--"}`,
+    `🗺️ Longitud: ${m.lon!==undefined?safeNum(m.lon,6):"--"}`,
+    `⛰️ Altura: ${movilAlt}`,
+    `🛰️ Satélites: ${safeVal(m.satelites)}`,
+    `🚀 Velocidad: ${movilVel}`,
+    `🎯 Precisión: ${safeVal(m.hdop)}`
   ]);
   let fijoFlag="--";
   if(f.fijo_ok!==undefined) fijoFlag=boolToSiNo(f.fijo_ok);
   else if(f.fix!==undefined) fijoFlag=boolToSiNo(f.fix);
   infoFijoEl.innerHTML=makeLines([
-    `Hora: ${safeVal(f.hora_ecuador)}`,
-    `Latitud: ${f.lat!==undefined?safeNum(f.lat,6):"--"}`,
-    `Longitud: ${f.lon!==undefined?safeNum(f.lon,6):"--"}`,
-    `Satélites: ${safeVal(f.satelites)}`,
-    `Fijo: ${fijoFlag}`,
-    `Precisión: ${safeVal(f.hdop)}`
+    `⏱️ Hora: ${safeVal(f.hora_ecuador)}`,
+    `📍 Latitud: ${f.lat!==undefined?safeNum(f.lat,6):"--"}`,
+    `📍 Longitud: ${f.lon!==undefined?safeNum(f.lon,6):"--"}`,
+    `🛰️ Satélites: ${safeVal(f.satelites)}`,
+    `⚓ Fijo: ${fijoFlag}`,
+    `🎯 Precisión: ${safeVal(f.hdop)}`
   ]);
 }
 function openInfo()  {infoOpen=true;  renderInfo(); infoOverlay.style.display="flex";  infoOverlay.setAttribute("aria-hidden","false"); }
