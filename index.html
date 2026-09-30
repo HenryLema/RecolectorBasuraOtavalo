@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />onValue(ref(
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
   <title>Basura Otavalo</title>
 
@@ -379,7 +379,7 @@ document.addEventListener("visibilitychange", () => {
 
 // ─── Mapa ─────────────────────────────────────────────────────
 const map = L.map("map", {
-  zoomControl:false, tap:true, tapTolerance:15
+  zoomControl:false, tap:true, tapTolerance:15, preferCanvas:true
 }).setView([0.23299010950077462,-78.26316758796887],14);
 
 L.Popup.mergeOptions({closeButton:true});
@@ -485,23 +485,48 @@ busMarker.on("popupopen",()=>{pauseFollowFor(); });
 // ─── Auto-follow ──────────────────────────────────────────────
 const FOLLOW_RESUME_MS=60000;
 let followEnabled=true, followTimer=null, lastLatLng=null;
+// Los movimientos hechos por el propio código NO deben pausar el seguimiento
+let progMove=false, progTimer=null;
+function progView(fn){
+  progMove=true; clearTimeout(progTimer);
+  fn();
+  progTimer=setTimeout(()=>{ progMove=false; },900);
+}
 function pauseFollowFor(ms=FOLLOW_RESUME_MS) {
   followEnabled=false;
   if(followTimer) clearTimeout(followTimer);
   followTimer=setTimeout(()=>{
     followEnabled=true;
-    if(lastLatLng) map.setView(lastLatLng,map.getZoom(),{animate:true,duration:0.6});
+    if(lastLatLng) progView(()=>map.setView(lastLatLng,map.getZoom(),{animate:true,duration:0.6}));
   },ms);
 }
-map.on("zoomstart",()=>pauseFollowFor());
-map.on("zoom",     ()=>pauseFollowFor());
+const _userMove=()=>{ if(!progMove) pauseFollowFor(); };
+map.on("zoomstart",_userMove);
+map.on("zoom",     _userMove);
 map.on("dragstart",()=>{ if(!drawMode) pauseFollowFor(); });
-map.on("movestart",()=>pauseFollowFor());
+map.on("movestart",_userMove);
 
 // ─── Ruta verde ───────────────────────────────────────────────
-const trailLatLngs=[], MAX_POINTS=5000;
-const trailLine=L.polyline(trailLatLngs,{color:"green",weight:5,opacity:0.9}).addTo(map);
-const trailHead=L.polyline([],          {color:"green",weight:5,opacity:0.9}).addTo(map);
+const trailLatLngs=[], MAX_POINTS=2500;
+const TRAIL_STYLE={color:"green",weight:5,opacity:0.9,smoothFactor:2,interactive:false};
+// Restaura el recorrido guardado (si se recarga la página o el celular descarta la pestaña)
+const TRAIL_KEY="rbo_trail_v1", TRAIL_MAX_AGE_MS=60*60*1000;
+try{
+  const s=JSON.parse(localStorage.getItem(TRAIL_KEY)||"null");
+  if(s&&Array.isArray(s.p)&&Date.now()-s.t<=TRAIL_MAX_AGE_MS)
+    s.p.forEach(q=>{ if(Array.isArray(q)&&isFinite(q[0])&&isFinite(q[1])) trailLatLngs.push(q); });
+}catch(e){}
+const trailLine=L.polyline(trailLatLngs,TRAIL_STYLE).addTo(map);
+const trailHead=L.polyline([],          TRAIL_STYLE).addTo(map);
+let _trailDirty=false;
+setInterval(()=>{
+  if(!_trailDirty) return;
+  _trailDirty=false;
+  try{
+    localStorage.setItem(TRAIL_KEY,JSON.stringify({t:Date.now(),
+      p:trailLatLngs.slice(-1200).map(q=>[+q[0].toFixed(6),+q[1].toFixed(6)])}));
+  }catch(e){}
+},15000);
 let trailVisible=true;
 
 document.getElementById("btnToggleTrail").addEventListener("click",e=>{
@@ -569,24 +594,32 @@ const snapKey=(lat,lon)=>`${lat.toFixed(5)},${lon.toFixed(5)}`;
 async function snapToRoad(lat,lon) {
   const k=snapKey(lat,lon);
   if(snapCache.has(k)) return snapCache.get(k);
-  const r=await fetch(`https://router.project-osrm.org/nearest/v1/driving/${lon},${lat}?number=1`);
-  if(!r.ok) throw 0;
-  const j=await r.json();
+  const ac=new AbortController(), to=setTimeout(()=>ac.abort(),4000);
+  let j;
+  try{
+    const r=await fetch(`https://router.project-osrm.org/nearest/v1/driving/${lon},${lat}?number=1`,{signal:ac.signal});
+    if(!r.ok) throw 0;
+    j=await r.json();
+  } finally { clearTimeout(to); }
   const loc=j?.waypoints?.[0]?.location;
   if(!loc) throw 0;
   const pt=[loc[1],loc[0]];
   snapCache.set(k,pt); return pt;
 }
+let snapFails=0, snapPausedUntil=0;
 function maybeRequestSnap(rawLat,rawLon) {
-  if(snapPending) return;
+  if(snapPending||_slowNet||Date.now()<snapPausedUntil) return;
   if(!lastSnapRaw) lastSnapRaw=[rawLat,rawLon];
   if(haversineMeters(lastSnapRaw[0],lastSnapRaw[1],rawLat,rawLon)<SNAP_MIN_MOVE_M) return;
   snapPending=true;
   const rLat=rawLat,rLon=rawLon;
   lastSnapRaw=[rawLat,rawLon];
   snapToRoad(rLat,rLon).then(pt=>{
+    snapFails=0;
     if(haversineMeters(rLat,rLon,pt[0],pt[1])<=SNAP_MAX_ERR_M) lastSnapped={pt,t:Date.now()};
-  }).catch(()=>{}).finally(()=>{ snapPending=false; });
+  }).catch(()=>{
+    if(++snapFails>=3){ snapFails=0; snapPausedUntil=Date.now()+120000; }
+  }).finally(()=>{ snapPending=false; });
 }
 function pickRoadPoint(rawLat,rawLon) {
   maybeRequestSnap(rawLat,rawLon);
@@ -610,17 +643,25 @@ const STOPPED_FREEZE_CYCLES = 3;
 let   stoppedCycleCount     = 0;
 let   trailFrozen           = false;  // cuando es true, no se agregan puntos
 
-let lastStableDraw=null,lastSmoothed=null;
+let lastStableDraw=null,lastSmoothed=null,jumpRejects=0;
 
 function pushTrail(latLng) {
   trailLatLngs.push(latLng);
-  if(trailLatLngs.length>MAX_POINTS) trailLatLngs.shift();
-  if(trailVisible) trailLine.setLatLngs(trailLatLngs);
+  _trailDirty=true;
+  if(trailLatLngs.length>MAX_POINTS){
+    trailLatLngs.splice(0,trailLatLngs.length-MAX_POINTS);
+    if(trailVisible) trailLine.setLatLngs(trailLatLngs);
+  } else if(trailVisible) trailLine.addLatLng(latLng);
 }
 function stablePoint(lat,lon) {
   const p=[lat,lon];
   if(!lastStableDraw){lastStableDraw=p;return p;}
-  if(haversineMeters(lastStableDraw[0],lastStableDraw[1],p[0],p[1])>MAX_JUMP_DRAW_M) return lastStableDraw;
+  if(haversineMeters(lastStableDraw[0],lastStableDraw[1],p[0],p[1])>MAX_JUMP_DRAW_M){
+    // Glitch aislado de GPS: se ignora. Si se repite 3 ciclos seguidos, es movimiento real.
+    if(++jumpRejects<3) return lastStableDraw;
+    lastSmoothed=null;
+  }
+  jumpRejects=0;
   lastStableDraw=p; return p;
 }
 
@@ -640,6 +681,12 @@ function updateGreenTrailForced(rawLat, rawLon, rawSpeedKmh) {
   // Activar congelación después de N ciclos quieto
   if (stoppedCycleCount >= STOPPED_FREEZE_CYCLES) {
     trailFrozen = true;
+  }
+
+  // Si el vehículo se alejó >30 m del último punto, se mueve de verdad (velocidad baja): descongelar
+  if (trailFrozen && trailLatLngs.length > 0) {
+    const l = trailLatLngs[trailLatLngs.length - 1];
+    if (haversineMeters(l[0], l[1], rawLat, rawLon) > 30) { trailFrozen = false; stoppedCycleCount = 0; }
   }
 
   // Si está congelado: solo actualiza la cabeza visual pero NO agrega puntos
@@ -800,8 +847,10 @@ onValue(ref(db,"NodoFijo"),snap=>{
 });
 onValue(ref(db,"Recolector/Otavalo/Vehiculo1"),snap=>{
   const d=snap.val(); if(!d) return;
+  const first=!latestBusData;
   latestBusData=d;
   if(infoOpen) renderInfo();
+  if(first) setTimeout(busTick,0);
 });
 
 // ─── Aplica datos a UI y mapa ─────────────────────────────────
@@ -814,8 +863,8 @@ function applyBusDataToUIAndMap(d) {
   setBusMovingState(rawSpeedKmh>=1.0);
   const busPos=[lat,lon];
   busMarker.setLatLng(busPos);
-  if(followEnabled) map.panTo(busPos,{animate:true,duration:0.4});
-  if(!lastLatLng) map.setView(busPos,16);
+  if(!lastLatLng) progView(()=>map.setView(busPos,16));
+  else if(followEnabled) progView(()=>map.panTo(busPos,{animate:true,duration:0.4}));
   lastLatLng=busPos;
   const ph=buildBusPopupHtml(rawSpeedKmh,busIsMoving);
   if(busMarker.getPopup()) busMarker.setPopupContent(ph);
@@ -826,7 +875,7 @@ function applyBusDataToUIAndMap(d) {
 // ─── Loop 3 s ─────────────────────────────────────────────────
 let activeSolicitudPopupKey = null;
 
-setInterval(()=>{
+function busTick(){
   if(!latestBusData) return;
   const info=applyBusDataToUIAndMap(latestBusData);
   if(!info) return;
@@ -857,7 +906,9 @@ setInterval(()=>{
       activeSolicitudPopupKey=null;
     }
   }
-},3000);
+}
+setInterval(busTick,3000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) busTick(); });
 
 // ═══════════════════════════════════════════════════════════════
 // ─── Solicitudes compartidas en tiempo real (Firebase) ────────
