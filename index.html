@@ -998,42 +998,26 @@ const btnDibujar = document.getElementById("btnDibujar");
 const drawHint   = document.getElementById("drawHint");
 const mapEl      = document.getElementById("map");
 
-function activarModoDibujo() {
-  drawMode=true;
-  btnDibujar.textContent="📊 Calcular: Si";
-  btnDibujar.classList.add("drawing-active");
-  mapEl.classList.add("draw-mode");
-  drawHint.style.display="block";
-  map.dragging.disable();
-  map.scrollWheelZoom.disable();
-
-  pauseFollowFor();
-}
-function desactivarModoDibujo() {
-  drawMode=false;
-  btnDibujar.textContent="📈 Calcular";
-  btnDibujar.classList.remove("drawing-active");
-  mapEl.classList.remove("draw-mode");
-  drawHint.style.display="none";
-  map.dragging.enable();
-  map.scrollWheelZoom.enable();
+function setDraw(on) {
+  drawMode=on;
+  btnDibujar.textContent=on?"📊 Calcular: Si":"📊 Calcular";
+  btnDibujar.classList.toggle("drawing-active",on);
+  mapEl.classList.toggle("draw-mode",on);
+  drawHint.style.display=on?"block":"none";
+  map.dragging[on?"disable":"enable"]();
+  map.scrollWheelZoom[on?"disable":"enable"]();
+  if(on) pauseFollowFor();
 }
 
-btnDibujar.addEventListener("click", async () => {
-  if(!drawMode) activarModoDibujo();
-  else desactivarModoDibujo();
-});
+btnDibujar.addEventListener("click", ()=>setDraw(!drawMode));
 
-map.on("click", async function(e){
+map.on("click", async e=>{
   if(!drawMode) return;
-
-  desactivarModoDibujo();
+  setDraw(false);
   await crearSolicitud(e.latlng.lat, e.latlng.lng);
 });
 
-window.addEventListener("keydown", e=>{
-  if(e.key==="Escape"&&drawMode){desactivarModoDibujo(); }
-});
+window.addEventListener("keydown", e=>{ if(e.key==="Escape"&&drawMode) setDraw(false); });
 </script>
 </body>
 </html>
