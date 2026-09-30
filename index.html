@@ -720,7 +720,7 @@ let activeStopId=null;
 function buildStopPopupHtml(name, etaTxt="--", distTxt="--", speedTxt="--") {
   return `<div class="stop-popup-wrap">
     <span class="stop-popup-title">${name}</span>
-    <span class="stop-popup-line">⌛ Llegada: ${etaTxt}</span>
+    <span class="stop-popup-line">⏱️ Llegada: ${etaTxt}</span>
     <span class="stop-popup-line">📐 Distancia: ${distTxt}</span>
     <span class="stop-popup-line">🚀 Velocidad: ${speedTxt}</span>
   </div>`;
@@ -738,7 +738,7 @@ function buildSolicitudPopupHtml(fbKey, esMio, color, etaTxt="--", distTxt="--",
     : `<span class="stop-popup-line" style="color:#888;font-size:10px;">Otro usuario</span>`;
   return `<div class="stop-popup-wrap">
     <span class="stop-popup-title">📊 Calcular <span style="color:${color};">■</span></span>
-    <span class="stop-popup-line">⌛ Llegada: ${etaTxt}</span>
+    <span class="stop-popup-line">⏱️ Llegada: ${etaTxt}</span>
     <span class="stop-popup-line">📐 Distancia: ${distTxt}</span>
     <span class="stop-popup-line">🚀 Velocidad: ${speedTxt}</span>
     ${cancelBtn}
