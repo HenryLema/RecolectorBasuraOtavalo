@@ -987,7 +987,7 @@ const mapEl      = document.getElementById("map");
 
 function setDraw(on) {
   drawMode=on;
-  btnDibujar.textContent=on?"📊 Calcular: Si":"📊 Calcular";
+  btnDibujar.textContent=on?"📊 Cancelar":"📊 Calcular";
   mapEl.classList.toggle("draw-mode",on);
   drawHint.style.display=on?"block":"none";
   map.dragging[on?"disable":"enable"]();
