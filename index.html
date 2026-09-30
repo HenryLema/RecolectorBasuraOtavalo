@@ -510,7 +510,7 @@ map.on("movestart",_userMove);
 const trailLatLngs=[], MAX_POINTS=2500;
 const TRAIL_STYLE={color:"green",weight:5,opacity:0.9,smoothFactor:2,interactive:false};
 // Restaura el recorrido guardado (si se recarga la página o el celular descarta la pestaña)
-const TRAIL_KEY="rbo_trail_v1", TRAIL_MAX_AGE_MS=60*60*1000;
+const TRAIL_KEY="rbo_trail_v2", TRAIL_MAX_AGE_MS=60*60*1000;
 try{
   const s=JSON.parse(localStorage.getItem(TRAIL_KEY)||"null");
   if(s&&Array.isArray(s.p)&&Date.now()-s.t<=TRAIL_MAX_AGE_MS)
@@ -631,16 +631,16 @@ function pickRoadPoint(rawLat,rawLon) {
 }
 
 // ─── Filtro / ruta ────────────────────────────────────────────
-const SMOOTH_ALPHA_POS = 0.40;
+const SMOOTH_ALPHA_POS = 0.60;
 // ✅ CORRECCIÓN CLAVE: umbral mínimo de distancia para agregar punto al trail
-const MIN_ADD_DIST_M   = 12;   // era 3 — evita garabatos en reposo
+const MIN_ADD_DIST_M   = 15;   // era 3 — evita garabatos en reposo
 const MAX_JUMP_DRAW_M  = 150;  // era 200
 
 // ✅ NUEVO: umbral de velocidad para considerar el vehículo detenido (JS)
 const STOPPED_SPEED_KMH   = 3.0;
 // ✅ NUEVO: cuántos ciclos consecutivos quieto antes de congelar el trail
-const STOPPED_FREEZE_CYCLES = 3;
-let   stoppedCycleCount     = 0;
+const STOPPED_FREEZE_CYCLES = 2;
+let   stoppedCycleCount     = 0, movingCycleCount = 0;
 let   trailFrozen           = false;  // cuando es true, no se agregan puntos
 
 let lastStableDraw=null,lastSmoothed=null,jumpRejects=0;
@@ -665,57 +665,61 @@ function stablePoint(lat,lon) {
   lastStableDraw=p; return p;
 }
 
-// ✅ FUNCIÓN CORREGIDA: congela trail cuando está detenido
+// ─── Segmentos por calle (OSRM route): curvas redondas que siguen la calle ───
+let routePending=false, routeFails=0, routePausedUntil=0;
+async function routeSegment(a,b){
+  const ac=new AbortController(), to=setTimeout(()=>ac.abort(),4000);
+  try{
+    const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`,{signal:ac.signal});
+    if(!r.ok) throw 0;
+    const rt=(await r.json())?.routes?.[0];
+    if(!rt) throw 0;
+    const pts=rt.geometry.coordinates.map(c=>[c[1],c[0]]);
+    const d=haversineMeters(a[0],a[1],b[0],b[1]), e=pts[pts.length-1];
+    // Descarta desvíos raros (sentido único, calle paralela): se usa línea recta
+    if(rt.distance>d*1.6+25 || haversineMeters(e[0],e[1],b[0],b[1])>SNAP_MAX_ERR_M) return null;
+    return pts.slice(1);
+  } finally { clearTimeout(to); }
+}
+function addTrailSegment(last,p){
+  if(_slowNet||Date.now()<routePausedUntil){ pushTrail(p); return; }
+  if(routePending) return;
+  routePending=true;
+  routeSegment(last,p)
+    .then(pts=>{ routeFails=0; if(pts&&pts.length) pts.forEach(pushTrail); else pushTrail(p); })
+    .catch(()=>{ pushTrail(p); if(++routeFails>=3){ routeFails=0; routePausedUntil=Date.now()+120000; } })
+    .finally(()=>{ routePending=false; });
+}
+
+// ✅ Trail: sin rayas en reposo + curvas que siguen la calle
 function updateGreenTrailForced(rawLat, rawLon, rawSpeedKmh) {
   const speedKmh = Number(rawSpeedKmh || 0);
+  const last  = trailLatLngs.length ? trailLatLngs[trailLatLngs.length - 1] : null;
+  const dLast = last ? haversineMeters(last[0], last[1], rawLat, rawLon) : 0;
+  const slow  = speedKmh < STOPPED_SPEED_KMH;
 
-  // Detectar si está detenido
-  if (speedKmh < STOPPED_SPEED_KMH) {
-    stoppedCycleCount = Math.min(stoppedCycleCount + 1, STOPPED_FREEZE_CYCLES + 1);
-  } else {
-    // Vehículo en movimiento — descongelar trail
-    stoppedCycleCount = 0;
-    trailFrozen = false;
-  }
+  if (slow) { stoppedCycleCount++; movingCycleCount = 0; }
+  else      { movingCycleCount++;  stoppedCycleCount = 0; }
+  if (stoppedCycleCount >= STOPPED_FREEZE_CYCLES) trailFrozen = true;
+  // Salir de reposo: 2 lecturas seguidas en movimiento, o alejarse de verdad (>35 m)
+  if (trailFrozen && (movingCycleCount >= 2 || dLast > 35)) { trailFrozen = false; lastSmoothed = null; }
 
-  // Activar congelación después de N ciclos quieto
-  if (stoppedCycleCount >= STOPPED_FREEZE_CYCLES) {
-    trailFrozen = true;
-  }
-
-  // Si el vehículo se alejó >30 m del último punto, se mueve de verdad (velocidad baja): descongelar
-  if (trailFrozen && trailLatLngs.length > 0) {
-    const l = trailLatLngs[trailLatLngs.length - 1];
-    if (haversineMeters(l[0], l[1], rawLat, rawLon) > 30) { trailFrozen = false; stoppedCycleCount = 0; }
-  }
-
-  // Si está congelado: solo actualiza la cabeza visual pero NO agrega puntos
-  if (trailFrozen) {
-    // Mantener la "cabecita" exactamente en el último punto del trail
-    // (sin dibujar el segmento de ruido)
-    if (trailLatLngs.length > 0 && trailVisible) {
-      const last = trailLatLngs[trailLatLngs.length - 1];
-      trailHead.setLatLngs([last, last]); // punto en sí mismo = sin línea
-    }
+  // En reposo (o velocidad baja sin desplazamiento real): no se dibuja nada, se ignora el ruido GPS
+  if (last && (trailFrozen || (slow && dLast < 35))) {
+    if (trailVisible) trailHead.setLatLngs([last, last]);
+    lastSmoothed = null;
     return;
   }
 
-  // Vehículo en movimiento: comportamiento normal con filtros
   const p0 = stablePoint(rawLat, rawLon);
-  const roadPt = pickRoadPoint(p0[0], p0[1]);
-  lastSmoothed = ema2(lastSmoothed, roadPt, SMOOTH_ALPHA_POS);
+  lastSmoothed = ema2(lastSmoothed, p0, SMOOTH_ALPHA_POS);
   const p = lastSmoothed;
 
-  if (trailLatLngs.length === 0) {
-    pushTrail(p);
-  } else {
-    const last = trailLatLngs[trailLatLngs.length - 1];
-    // ✅ Solo agrega punto si se movió más de MIN_ADD_DIST_M
-    if (haversineMeters(last[0], last[1], p[0], p[1]) >= MIN_ADD_DIST_M) {
-      pushTrail(p);
-    }
-  }
-  if (trailVisible) trailHead.setLatLngs([p, [rawLat, rawLon]]);
+  if (!last) pushTrail(p);
+  else if (haversineMeters(last[0], last[1], p[0], p[1]) >= MIN_ADD_DIST_M) addTrailSegment(last, p);
+
+  const h = trailLatLngs[trailLatLngs.length - 1];
+  if (trailVisible) trailHead.setLatLngs(haversineMeters(h[0], h[1], rawLat, rawLon) < 60 ? [h, [rawLat, rawLon]] : [h, h]);
 }
 
 // ─── Contenedores ───────────────────────────────────
