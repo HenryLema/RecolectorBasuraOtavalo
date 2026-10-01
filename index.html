@@ -388,7 +388,7 @@ map.attributionControl.setPrefix("🪐 Red Otavalo");
 const _conn = navigator.connection || {};
 const _slowNet = !!_conn.saveData || /(^|slow-)2g|3g/.test(_conn.effectiveType || "");
 const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
-  maxZoom:19, detectRetina:!_slowNet, updateWhenZooming:false
+  maxZoom:19, detectRetina:!_slowNet, updateWhenZooming:false, updateWhenIdle:true, keepBuffer:_slowNet?1:2
 }).addTo(map);
 tiles.on("tileerror", e => {
   const t = e.tile;
@@ -487,11 +487,7 @@ const FOLLOW_RESUME_MS=60000;
 let followEnabled=true, followTimer=null, lastLatLng=null;
 // Los movimientos hechos por el propio código NO deben pausar el seguimiento
 let progMove=false, progTimer=null;
-function progView(fn){
-  progMove=true; clearTimeout(progTimer);
-  fn();
-  progTimer=setTimeout(()=>{ progMove=false; },900);
-}
+function progView(fn){ progMove=true; clearTimeout(progTimer); fn(); progTimer=setTimeout(()=>{ progMove=false; },900); }
 function pauseFollowFor(ms=FOLLOW_RESUME_MS) {
   followEnabled=false;
   if(followTimer) clearTimeout(followTimer);
@@ -507,14 +503,15 @@ map.on("dragstart",()=>{ if(!drawMode) pauseFollowFor(); });
 map.on("movestart",_userMove);
 
 // ─── Ruta verde ───────────────────────────────────────────────
-const trailLatLngs=[], MAX_POINTS=2500;
-const TRAIL_STYLE={color:"green",weight:5,opacity:0.9,smoothFactor:2,interactive:false};
-// Restaura el recorrido guardado (si se recarga la página o el celular descarta la pestaña)
-const TRAIL_KEY="rbo_trail_v2", TRAIL_MAX_AGE_MS=60*60*1000;
+const trailLatLngs=[], MAX_POINTS=3000, ctrl=[];
+const TRAIL_STYLE={color:"green",weight:5,opacity:0.9,smoothFactor:1.5,lineCap:"round",lineJoin:"round",interactive:false};
+// Restaura el recorrido guardado (recarga o pestaña descartada por el celular)
+const TRAIL_KEY="rbo_trail_v3", TRAIL_MAX_AGE_MS=60*60*1000;
 try{
-  const s=JSON.parse(localStorage.getItem(TRAIL_KEY)||"null");
-  if(s&&Array.isArray(s.p)&&Date.now()-s.t<=TRAIL_MAX_AGE_MS)
-    s.p.forEach(q=>{ if(Array.isArray(q)&&isFinite(q[0])&&isFinite(q[1])) trailLatLngs.push(q); });
+  const sv=JSON.parse(localStorage.getItem(TRAIL_KEY)||"null");
+  if(sv&&Array.isArray(sv.p)&&Date.now()-sv.t<=TRAIL_MAX_AGE_MS)
+    sv.p.forEach(q=>{ if(Array.isArray(q)&&isFinite(q[0])&&isFinite(q[1])) trailLatLngs.push(q); });
+  if(trailLatLngs.length) ctrl.push(trailLatLngs[trailLatLngs.length-1]);
 }catch(e){}
 const trailLine=L.polyline(trailLatLngs,TRAIL_STYLE).addTo(map);
 const trailHead=L.polyline([],          TRAIL_STYLE).addTo(map);
@@ -522,10 +519,8 @@ let _trailDirty=false;
 setInterval(()=>{
   if(!_trailDirty) return;
   _trailDirty=false;
-  try{
-    localStorage.setItem(TRAIL_KEY,JSON.stringify({t:Date.now(),
-      p:trailLatLngs.slice(-1200).map(q=>[+q[0].toFixed(6),+q[1].toFixed(6)])}));
-  }catch(e){}
+  try{ localStorage.setItem(TRAIL_KEY,JSON.stringify({t:Date.now(),
+    p:trailLatLngs.slice(-1500).map(q=>[+q[0].toFixed(6),+q[1].toFixed(6)])})); }catch(e){}
 },15000);
 let trailVisible=true;
 
@@ -607,8 +602,9 @@ async function snapToRoad(lat,lon) {
   snapCache.set(k,pt); return pt;
 }
 let snapFails=0, snapPausedUntil=0;
+const _netSlowNow=()=>{ const c=navigator.connection||{}; return !!c.saveData||/(^|slow-)2g|3g/.test(c.effectiveType||""); };
 function maybeRequestSnap(rawLat,rawLon) {
-  if(snapPending||_slowNet||Date.now()<snapPausedUntil) return;
+  if(snapPending||_netSlowNow()||Date.now()<snapPausedUntil) return;
   if(!lastSnapRaw) lastSnapRaw=[rawLat,rawLon];
   if(haversineMeters(lastSnapRaw[0],lastSnapRaw[1],rawLat,rawLon)<SNAP_MIN_MOVE_M) return;
   snapPending=true;
@@ -631,7 +627,7 @@ function pickRoadPoint(rawLat,rawLon) {
 }
 
 // ─── Filtro / ruta ────────────────────────────────────────────
-const SMOOTH_ALPHA_POS = 0.60;
+const SMOOTH_ALPHA_POS = 0.50;
 // ✅ CORRECCIÓN CLAVE: umbral mínimo de distancia para agregar punto al trail
 const MIN_ADD_DIST_M   = 15;   // era 3 — evita garabatos en reposo
 const MAX_JUMP_DRAW_M  = 150;  // era 200
@@ -653,6 +649,31 @@ function pushTrail(latLng) {
     if(trailVisible) trailLine.setLatLngs(trailLatLngs);
   } else if(trailVisible) trailLine.addLatLng(latLng);
 }
+// ─── Curvas suaves (Bézier cuadrática por puntos medios, 100 % local, sin red) ───
+const BEZ_N=5, GAP_BREAK_M=80;
+const _mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+function flushTail(){            // cierra la línea exactamente en el último punto de control
+  if(!ctrl.length) return;
+  const c=ctrl[ctrl.length-1], l=trailLatLngs[trailLatLngs.length-1];
+  if(!l||haversineMeters(l[0],l[1],c[0],c[1])>0.5) pushTrail(c);
+  ctrl.length=0; ctrl.push(c);
+}
+function addControl(c){
+  if(!ctrl.length){ ctrl.push(c); pushTrail(c); return; }
+  const prev=ctrl[ctrl.length-1];
+  if(haversineMeters(prev[0],prev[1],c[0],c[1])>GAP_BREAK_M){   // hueco de datos: unir con recta, sin curva falsa
+    flushTail(); ctrl.length=0; ctrl.push(c); pushTrail(c); return;
+  }
+  ctrl.push(c);
+  if(ctrl.length>3) ctrl.shift();
+  const n=ctrl.length;
+  const S = n===2 ? ctrl[0] : _mid(ctrl[n-3],ctrl[n-2]);
+  const C = ctrl[n-2], E=_mid(ctrl[n-2],ctrl[n-1]);
+  for(let i=1;i<=BEZ_N;i++){
+    const t=i/BEZ_N,u=1-t;
+    pushTrail([u*u*S[0]+2*u*t*C[0]+t*t*E[0], u*u*S[1]+2*u*t*C[1]+t*t*E[1]]);
+  }
+}
 function stablePoint(lat,lon) {
   const p=[lat,lon];
   if(!lastStableDraw){lastStableDraw=p;return p;}
@@ -665,61 +686,30 @@ function stablePoint(lat,lon) {
   lastStableDraw=p; return p;
 }
 
-// ─── Segmentos por calle (OSRM route): curvas redondas que siguen la calle ───
-let routePending=false, routeFails=0, routePausedUntil=0;
-async function routeSegment(a,b){
-  const ac=new AbortController(), to=setTimeout(()=>ac.abort(),4000);
-  try{
-    const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`,{signal:ac.signal});
-    if(!r.ok) throw 0;
-    const rt=(await r.json())?.routes?.[0];
-    if(!rt) throw 0;
-    const pts=rt.geometry.coordinates.map(c=>[c[1],c[0]]);
-    const d=haversineMeters(a[0],a[1],b[0],b[1]), e=pts[pts.length-1];
-    // Descarta desvíos raros (sentido único, calle paralela): se usa línea recta
-    if(rt.distance>d*1.6+25 || haversineMeters(e[0],e[1],b[0],b[1])>SNAP_MAX_ERR_M) return null;
-    return pts.slice(1);
-  } finally { clearTimeout(to); }
-}
-function addTrailSegment(last,p){
-  if(_slowNet||Date.now()<routePausedUntil){ pushTrail(p); return; }
-  if(routePending) return;
-  routePending=true;
-  routeSegment(last,p)
-    .then(pts=>{ routeFails=0; if(pts&&pts.length) pts.forEach(pushTrail); else pushTrail(p); })
-    .catch(()=>{ pushTrail(p); if(++routeFails>=3){ routeFails=0; routePausedUntil=Date.now()+120000; } })
-    .finally(()=>{ routePending=false; });
-}
-
-// ✅ Trail: sin rayas en reposo + curvas que siguen la calle
+// ✅ Trail: sin rayas en reposo, sin cortes y con curvas suaves
 function updateGreenTrailForced(rawLat, rawLon, rawSpeedKmh) {
-  const speedKmh = Number(rawSpeedKmh || 0);
-  const last  = trailLatLngs.length ? trailLatLngs[trailLatLngs.length - 1] : null;
-  const dLast = last ? haversineMeters(last[0], last[1], rawLat, rawLon) : 0;
-  const slow  = speedKmh < STOPPED_SPEED_KMH;
-
-  if (slow) { stoppedCycleCount++; movingCycleCount = 0; }
-  else      { movingCycleCount++;  stoppedCycleCount = 0; }
-  if (stoppedCycleCount >= STOPPED_FREEZE_CYCLES) trailFrozen = true;
+  const speedKmh=Number(rawSpeedKmh||0);
+  const ref=ctrl.length?ctrl[ctrl.length-1]:(trailLatLngs.length?trailLatLngs[trailLatLngs.length-1]:null);
+  const dRef=ref?haversineMeters(ref[0],ref[1],rawLat,rawLon):0;
+  const slow=speedKmh<STOPPED_SPEED_KMH;
+  if(slow){ stoppedCycleCount++; movingCycleCount=0; } else { movingCycleCount++; stoppedCycleCount=0; }
+  if(stoppedCycleCount>=STOPPED_FREEZE_CYCLES) trailFrozen=true;
   // Salir de reposo: 2 lecturas seguidas en movimiento, o alejarse de verdad (>35 m)
-  if (trailFrozen && (movingCycleCount >= 2 || dLast > 35)) { trailFrozen = false; lastSmoothed = null; }
-
-  // En reposo (o velocidad baja sin desplazamiento real): no se dibuja nada, se ignora el ruido GPS
-  if (last && (trailFrozen || (slow && dLast < 35))) {
-    if (trailVisible) trailHead.setLatLngs([last, last]);
-    lastSmoothed = null;
-    return;
+  if(trailFrozen&&(movingCycleCount>=2||dRef>35)){ trailFrozen=false; lastSmoothed=null; }
+  // En reposo no se dibuja nada (se ignora el ruido GPS) y la línea se cierra en el último punto
+  if(ref&&(trailFrozen||(slow&&dRef<35))){
+    flushTail();
+    if(trailVisible&&trailLatLngs.length){ const l=trailLatLngs[trailLatLngs.length-1]; trailHead.setLatLngs([l,l]); }
+    lastSmoothed=null; return;
   }
-
-  const p0 = stablePoint(rawLat, rawLon);
-  lastSmoothed = ema2(lastSmoothed, p0, SMOOTH_ALPHA_POS);
-  const p = lastSmoothed;
-
-  if (!last) pushTrail(p);
-  else if (haversineMeters(last[0], last[1], p[0], p[1]) >= MIN_ADD_DIST_M) addTrailSegment(last, p);
-
-  const h = trailLatLngs[trailLatLngs.length - 1];
-  if (trailVisible) trailHead.setLatLngs(haversineMeters(h[0], h[1], rawLat, rawLon) < 60 ? [h, [rawLat, rawLon]] : [h, h]);
+  const p0=stablePoint(rawLat,rawLon);
+  const roadPt=pickRoadPoint(p0[0],p0[1]);
+  lastSmoothed=ema2(lastSmoothed,roadPt,SMOOTH_ALPHA_POS);
+  const p=lastSmoothed;
+  if(!ref||haversineMeters(ref[0],ref[1],p[0],p[1])>=MIN_ADD_DIST_M) addControl(p);
+  // Cola: une la curva con el vehículo para que la línea nunca se vea cortada
+  const h=trailLatLngs[trailLatLngs.length-1];
+  if(trailVisible&&h) trailHead.setLatLngs(haversineMeters(h[0],h[1],rawLat,rawLon)<80?[h,p,[rawLat,rawLon]]:[h,h]);
 }
 
 // ─── Contenedores ───────────────────────────────────
